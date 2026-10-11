@@ -1,0 +1,5 @@
+{
+  "initialJsGzipKB": 400,
+  "targetJsGzipKB": 350,
+  "note": "initialJsGzipKB is the CI gate and only ever moves down. targetJsGzipKB is the plan's goal; MapLibre v6 alone is ~285 KB gzipped."
+}
