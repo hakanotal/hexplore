@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { TAXONOMY, categoryLabel } from '../domain/taxonomy'
-import type { Facet, StatusValue } from '../query/filters'
+import { activeFilterCount, type Facet, type StatusValue } from '../query/filters'
 import { useApp } from '../state/store'
 
 const STATUS_LABEL: Record<StatusValue, string> = { visited: 'Visited', wantToGo: 'Want to go', saved: 'Saved, other' }
@@ -34,6 +35,7 @@ export function FilterPanel({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-[15px] font-medium text-slate-700">Done</button>
       </header>
       <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+        <SavedViews />
         <Group title="Status">
           {options('status', ['visited', 'wantToGo', 'saved']).map(([k, n]) => (
             <Chip key={k} active={filters.status.includes(k as StatusValue)} count={n} onClick={() => toggle('status', k)}>
@@ -80,6 +82,62 @@ export function FilterPanel({ onClose }: { onClose: () => void }) {
         </button>
       </footer>
     </div>
+  )
+}
+
+function SavedViews() {
+  const views = useApp((s) => s.savedViews)
+  const canSave = useApp((s) => activeFilterCount(s.filters) > 0)
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  if (!views.length && !canSave) return null
+
+  const save = async () => {
+    if (!name.trim()) return
+    await useApp.getState().saveCurrentView(name)
+    setName('')
+    setNaming(false)
+  }
+
+  return (
+    <Group title="Saved views">
+      {views.map((v) => (
+        <span key={v.id} className="inline-flex items-center rounded-full bg-white ring-1 ring-slate-300">
+          <button onClick={() => useApp.getState().applyView(v)} className="py-1.5 pl-3 pr-1 text-[14px] text-slate-800">
+            {v.name}
+          </button>
+          <button onClick={() => void useApp.getState().removeView(v.id)} className="px-2 py-1.5 text-[13px] text-slate-400" aria-label={`Delete view ${v.name}`}>
+            ✕
+          </button>
+        </span>
+      ))}
+      {canSave && !naming && (
+        <button onClick={() => setNaming(true)} className="rounded-full px-3 py-1.5 text-[14px] text-blue-700 ring-1 ring-blue-200">
+          Save current filters
+        </button>
+      )}
+      {naming && (
+        <form
+          className="flex w-full gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void save()
+          }}
+        >
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Lisbon food, not visited"
+            aria-label="View name"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-[14px]"
+          />
+          <button type="submit" disabled={!name.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[14px] font-medium text-white disabled:opacity-40">
+            Save
+          </button>
+        </form>
+      )}
+    </Group>
   )
 }
 

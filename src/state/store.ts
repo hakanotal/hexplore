@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { getDb } from '../db/db'
-import type { List } from '../domain/types'
+import type { List, SavedView } from '../domain/types'
+import { deleteView, listSavedViews, saveView } from '../db/viewRepo'
 import { applyFilters, decodeFilters, emptyFilters, encodeFilters, FACETS, type Facet, type FacetCounts, type Filters } from '../query/filters'
 import { buildViews, type PlaceView } from '../query/placeView'
 import { toSearchDocs } from '../query/searchDocs'
@@ -38,11 +39,17 @@ interface AppState {
   /** Bumped to ask the map to fit the current results. */
   fitRequest: number
   pipeline: PipelineProgress | null
+  savedViews: SavedView[]
   /** Screen point to map coordinates; provided by the map once it has loaded. */
   pickPoint: ((x: number, y: number) => LatLng) | null
 
   load(): Promise<void>
   setFilters(patch: Partial<Filters>): void
+  /** Replaces every filter at once, e.g. when applying a saved view. */
+  replaceFilters(filters: Filters): void
+  saveCurrentView(name: string): Promise<void>
+  applyView(view: SavedView): void
+  removeView(id: string): Promise<void>
   toggleFacet(facet: Facet, value: string): void
   clearFilters(): void
   setQuery(q: string): void
@@ -116,15 +123,17 @@ export const useApp = create<AppState>((set, get) => {
     mapBounds: null,
     fitRequest: 0,
     pipeline: null,
+    savedViews: [],
     pickPoint: null,
 
     async load() {
       const db = getDb()
-      const [places, memberships, lists, userData] = await Promise.all([
+      const [places, memberships, lists, userData, savedViews] = await Promise.all([
         db.places.toArray(),
         db.memberships.toArray(),
         db.lists.toArray(),
         db.userData.toArray(),
+        listSavedViews(),
       ])
       lists.sort((a, b) => a.name.localeCompare(b.name))
       const views = buildViews({ places, memberships, lists, userData })
@@ -132,6 +141,7 @@ export const useApp = create<AppState>((set, get) => {
       const wasReady = get().ready
       recompute({
         ready: true,
+        savedViews,
         views,
         byId: new Map(views.map((v) => [v.id, v])),
         lists,
@@ -146,6 +156,31 @@ export const useApp = create<AppState>((set, get) => {
       const filters = { ...get().filters, ...patch }
       syncUrl(filters)
       recompute({ filters })
+    },
+
+    replaceFilters(filters) {
+      syncUrl(filters)
+      if (filters.q !== get().filters.q) {
+        set({ filters })
+        void runSearch(filters.q)
+      } else {
+        recompute({ filters })
+      }
+    },
+
+    async saveCurrentView(name) {
+      await saveView(name, encodeFilters(get().filters))
+      set({ savedViews: await listSavedViews() })
+    },
+
+    applyView(view) {
+      get().replaceFilters(decodeFilters(view.query))
+      get().requestFit()
+    },
+
+    async removeView(id) {
+      await deleteView(id)
+      set({ savedViews: await listSavedViews() })
     },
 
     toggleFacet(facet, value) {
