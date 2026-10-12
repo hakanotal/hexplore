@@ -73,18 +73,34 @@ describe('resolving a feature ID point', () => {
     expect(out).toMatchObject({ kind: 'commit', patch: { lat: near.lat, resolveStatus: 'resolved' } })
   })
 
-  it("keeps Google's point and offers a distant same-named match for review", async () => {
+  it('moves to a lone same-named place kilometres away, but flags it as possibly another branch', async () => {
     const out = await resolvePlace(place('La Grande Roue'), { geocoder: geocoder(cand('La Grande Roue', 41.045, 28.99)), ctx, final: false })
-    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged' } })
-    if (out.kind === 'commit') expect(out.patch.resolveCandidates).toHaveLength(1)
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'geocoder', resolveStatus: 'flagged', lat: 41.045 } })
   })
 
-  it("keeps Google's point when nothing matches, and skips the search for untitled rows", async () => {
+  it('ignores parking lots, roads and the town a place is named after', async () => {
+    const parking = { ...cand('Galata Tower', 41.0256, 28.9742), osmTags: { amenity: 'parking', name: 'Galata Tower' } }
+    const town = { ...cand('Galata Tower', 41.0257, 28.9741), osmTags: { place: 'suburb', name: 'Galata Tower' } }
+    const out = await resolvePlace(place('Galata Tower'), { geocoder: geocoder(parking, town), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged' } })
+  })
+
+  it('flags several same-named places when none is clearly the nearest', async () => {
+    const a = cand('Starbucks', 41.04, 28.99)
+    const b = cand('Starbucks', 41.01, 28.95)
+    const out = await resolvePlace(place('Starbucks'), { geocoder: geocoder(a, b), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'geocoder', resolveStatus: 'flagged' } })
+    if (out.kind === 'commit') expect(out.patch.resolveCandidates).toHaveLength(2)
+  })
+
+  it("keeps Google's point, flagged, when nothing confirms it, and skips the search for untitled rows", async () => {
     const out = await resolvePlace(place('Rasim abi'), { geocoder: geocoder(cand('Something else', 41.0256, 28.9742)), ctx, final: false })
-    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'resolved', resolveConfidence: FID_CONFIDENCE } })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged', resolveConfidence: FID_CONFIDENCE } })
+    const far = await resolvePlace(place('Galata Tower'), { geocoder: geocoder(cand('Galata Tower', 40.2, 29.9)), ctx, final: false })
+    expect(far).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged' } })
     const search = vi.fn(async () => [])
     const untitled = await resolvePlace(place('Untitled place'), { geocoder: { id: 'stub', search }, ctx, final: false })
-    expect(untitled).toMatchObject({ kind: 'commit', patch: { resolveStatus: 'resolved' } })
+    expect(untitled).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged' } })
     expect(search).not.toHaveBeenCalled()
   })
 })

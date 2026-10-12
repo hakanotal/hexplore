@@ -28,16 +28,18 @@ describe('readTakeout', () => {
     expect(want.rows.find((r) => !r.url)?.placeId).toMatch(/^h/)
   })
 
-  it('places list rows near the real place from the feature ID alone', async () => {
+  it('places list rows in the right region from the feature ID alone', async () => {
     const { files, world } = buildSampleTakeout({ count: 200 })
     const parsed = await readTakeout(Object.entries(files).map(([path, data]) => ({ path, data })))
     const truth = new Map(world.map((w) => [`g${w.cid}`, w]))
     const rows = parsed.lists.filter((l) => l.source === 'csv').flatMap((l) => l.rows.filter((r) => r.googleFid))
     expect(rows.length).toBeGreaterThan(100)
-    for (const r of rows) {
-      expect(r.coordSource).toBe('fid')
-      expect(haversineKm({ lat: r.lat!, lng: r.lng! }, truth.get(r.placeId)!)).toBeLessThan(0.1)
-    }
+    const errors = rows.map((r) => haversineKm({ lat: r.lat!, lng: r.lng! }, truth.get(r.placeId)!))
+    expect(rows.every((r) => r.coordSource === 'fid')).toBe(true)
+    // Like the real export: most close, a sizable share kilometres off, none beyond the region.
+    expect(errors.filter((e) => e < 0.25).length / errors.length).toBeGreaterThan(0.5)
+    expect(errors.filter((e) => e > 0.5).length / errors.length).toBeGreaterThan(0.2)
+    expect(Math.max(...errors)).toBeLessThan(10)
   })
 
   it('gives a list row and a starred place for the same Google place the same key', async () => {

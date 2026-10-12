@@ -228,15 +228,28 @@ function weightedPick<T extends { weight: number }>(rng: Rng, items: readonly T[
 }
 
 /**
- * Real feature IDs start with the S2 leaf cell where Google created the place,
- * usually tens of metres from where the place sits now. The random draw that
- * used to fill the first half now supplies that offset, so the rest of the
- * world stays the same for a given seed.
+ * Real feature IDs start with an S2 cell near where Google first placed the
+ * feature. Measured on the owner's export: about half sit within 200 m of the
+ * place, a third are 0.5 to 20 km off. The random draw that used to fill the
+ * first half now supplies that offset, so the rest of the world stays the
+ * same for a given seed.
  */
 function makeFid(rng: Rng, lat: number, lng: number): { fid: string; cid: string } {
   const jitter = rng.hex(16)
-  const dLat = (parseInt(jitter.slice(0, 4), 16) / 0xffff - 0.5) * 0.0008
-  const dLng = (parseInt(jitter.slice(4, 8), 16) / 0xffff - 0.5) * 0.0008
+  const unit = (from: number, to: number) => parseInt(jitter.slice(from, to), 16) / 16 ** (to - from)
+  let dLat: number
+  let dLng: number
+  if (unit(8, 10) < 0.35) {
+    // Far: 0.5 to 8 km in any direction.
+    const km = 0.5 + 7.5 * unit(10, 13)
+    const angle = 2 * Math.PI * unit(13, 16)
+    dLat = (km / 111.32) * Math.cos(angle)
+    dLng = (km / (111.32 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle)
+  } else {
+    // Near: within about 150 m.
+    dLat = (unit(0, 4) - 0.5) * 0.0027
+    dLng = (unit(4, 8) - 0.5) * 0.0027
+  }
   const a = `0x${latLngToS2Cell(lat + dLat, lng + dLng).toString(16).padStart(16, '0')}`
   // Keep the high bit clear so the CID stays a plausible positive 63-bit number.
   const b = `0x${(rng.int(1, 7)).toString(16)}${rng.hex(15)}`

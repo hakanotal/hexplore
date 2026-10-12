@@ -14,6 +14,7 @@
     "e2e": "playwright test",
     "fixtures": "tsx scripts/generate-fixtures.ts",
     "inspect:takeout": "tsx scripts/inspect-takeout.ts",
+    "accuracy": "tsx scripts/accuracy.ts",
     "check:bundle": "tsx scripts/check-bundle.ts"
   },
   "dependencies": {

@@ -10,9 +10,11 @@ import { haversineKm, nameSimilarity, normalizeName } from './similarity'
 //
 // Most list rows already carry an approximate point decoded from the Google
 // feature ID (coordSource 'fid'). With a Google key, Place Details by ID gives
-// the exact place. Without one (or past the monthly budget) that point
-// outweighs any list context: the search only has to find the matching POI
-// next to it, and when none matches Google's own point is kept.
+// the exact place. Without one (or past the monthly budget) the point narrows
+// the search to a region rather than pinning the place: measured on the
+// owner's export, half the points are within 200 m but a third are more than
+// a kilometre off (up to ~20 km), so a strong name match anywhere within
+// 15 km wins, and the point alone is never treated as resolved.
 
 export const ACCEPT_THRESHOLD = 0.85
 export const REVIEW_THRESHOLD = 0.5
@@ -26,16 +28,20 @@ export interface Cluster {
   city?: string
 }
 
-/** Candidates this close to the feature ID point count as on top of it. */
-const ANCHOR_RADIUS_KM = 0.25
-const ANCHOR_DECAY_KM = 1
-const ANCHOR_WEIGHT = 0.5
-/** Name similarity at which a distant candidate is worth showing the user. */
+/** How far from the feature ID point a same-named candidate may sit and still be the place. */
+const ANCHOR_RADIUS_KM = 15
+/** A candidate this close, with the next one three times further, wins a tie between branches. */
+const ANCHOR_NEAR_KM = 1
+/**
+ * A lone same-named match is taken outright only this close. Further out it
+ * is as likely another branch (measured: Junior's in Manhattan for the one in
+ * Brooklyn), so the pin moves there but stays flagged.
+ */
+const ANCHOR_SURE_KM = 1.5
+/** Name similarity a candidate needs to count as the place. */
 const ANCHOR_NAME_MATCH = 0.85
-/** Confidence in Google's point when no candidate matched near it. */
-export const FID_CONFIDENCE = 0.9
-/** Confidence when a same-named candidate elsewhere contests Google's point. */
-const FID_CONTESTED_CONFIDENCE = 0.6
+/** Confidence in the feature ID point when no candidate confirms it: shown, but flagged. */
+export const FID_CONFIDENCE = 0.55
 
 const CELL_DEG = 0.25 // ~25 km grid
 const CLUSTER_RADIUS_KM = 12
@@ -121,10 +127,29 @@ function scoreAgainstAnchor(title: string, candidates: GeoCandidate[], anchor: {
     .map((candidate) => {
       const name = nameSimilarity(title, candidate.name)
       const d = haversineKm(anchor, candidate)
-      const proximity = d <= ANCHOR_RADIUS_KM ? 1 : Math.exp(-(d - ANCHOR_RADIUS_KM) / ANCHOR_DECAY_KM)
-      return { candidate, name, proximity, score: (1 - ANCHOR_WEIGHT) * name + ANCHOR_WEIGHT * proximity }
+      const proximity = d <= ANCHOR_RADIUS_KM ? 1 - (0.5 * d) / ANCHOR_RADIUS_KM : 0
+      return { candidate, name, proximity, score: proximity ? name * proximity : 0 }
     })
     .sort((a, b) => b.score - a.score)
+}
+
+// Search results that are never what someone saves: car parks, roads, the
+// town or island a place is named after, administrative areas.
+const NOT_SAVEABLE: Record<string, true | string[]> = {
+  highway: true,
+  place: true,
+  boundary: true,
+  landuse: true,
+  building: ['yes', 'house', 'residential', 'apartments'],
+  amenity: ['parking', 'parking_entrance', 'parking_space', 'bicycle_parking', 'motorcycle_parking'],
+}
+
+export function isSaveable(c: GeoCandidate): boolean {
+  for (const [key, value] of Object.entries(c.osmTags)) {
+    const rule = NOT_SAVEABLE[key]
+    if (rule === true || (Array.isArray(rule) && rule.includes(value))) return false
+  }
+  return true
 }
 
 export function scoreCandidates(
@@ -262,28 +287,32 @@ export function googlePatch(place: Place, g: GooglePlace): Partial<Place> {
 
 /** Refines a feature ID point. Never defers: list clusters add nothing to it. */
 async function resolveAnchored(place: Place, anchor: { lat: number; lng: number }, opts: ResolveOptions): Promise<ResolveOutcome> {
+  // The point stays on the map, flagged, until something confirms it.
   const keep: Partial<Place> = {
     coordSource: 'fid',
-    resolveStatus: 'resolved',
+    resolveStatus: 'flagged',
     resolveConfidence: FID_CONFIDENCE,
     resolveSource: 'fid',
     resolveCandidates: undefined,
   }
   if (place.title === UNTITLED_PLACE) return { kind: 'commit', patch: keep }
 
-  const candidates = await opts.geocoder.search({ text: place.title, near: anchor, limit: 5 }, opts.signal)
+  const candidates = (await opts.geocoder.search({ text: place.title, near: anchor, limit: 8 }, opts.signal)).filter(isSaveable)
   const scored = scoreCandidates(place.title, candidates, opts.ctx, anchor)
-  const result = confidence(scored)
-  if (result && result.value > ACCEPT_THRESHOLD) {
-    return { kind: 'commit', patch: geocoderPatch(scored[result.index]!.candidate, result.value, true, scored, opts.geocoder.id) }
+  const good = scored
+    .filter((s) => s.name >= ANCHOR_NAME_MATCH && s.proximity !== null && s.proximity > 0)
+    .sort((a, b) => haversineKm(anchor, a.candidate) - haversineKm(anchor, b.candidate))
+  const dist = (s: ScoredCandidate) => haversineKm(anchor, s.candidate)
+  const only = good.length === 1
+  // Branches of one name: take the nearest only when it is clearly the nearest.
+  const clear = good.length > 1 && dist(good[0]!) <= ANCHOR_NEAR_KM && dist(good[1]!) >= 3 * Math.max(dist(good[0]!), 0.3)
+  if ((only && dist(good[0]!) <= ANCHOR_SURE_KM) || clear) {
+    const value = Math.round((only ? 0.9 + 0.08 * good[0]!.name : 0.86) * 1000) / 1000
+    return { kind: 'commit', patch: geocoderPatch(good[0]!.candidate, value, true, scored, opts.geocoder.id) }
   }
-  // The right name away from Google's point: Google moved the pin after the ID
-  // was made, or it is another branch. Keep Google's point and offer the match.
-  if (scored[0] && scored[0].name >= ANCHOR_NAME_MATCH) {
-    return {
-      kind: 'commit',
-      patch: { ...keep, resolveStatus: 'flagged', resolveConfidence: FID_CONTESTED_CONFIDENCE, resolveCandidates: toReviewCandidates(scored) },
-    }
+  if (good.length) {
+    // A lone match further out, or several branches: show the nearest and let the owner check.
+    return { kind: 'commit', patch: geocoderPatch(good[0]!.candidate, only ? 0.7 : 0.6, false, good, opts.geocoder.id) }
   }
   return { kind: 'commit', patch: keep }
 }

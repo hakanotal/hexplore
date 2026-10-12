@@ -1,9 +1,10 @@
 // Google feature IDs ("0x14cab9bd6570f4e1:0xe52df7368a157ca4") start with an S2
-// leaf cell ID taken at the place's position when Google created it. Decoding
-// it places a list row on the map without any network call. Checked against
-// the owner's export: landmarks land within about 100 m. Places Google moved
-// after creation keep their original ID, so a few are a kilometre or more off,
-// which is why the resolve stage still refines these points.
+// cell ID near where Google first placed the feature. Decoding it puts a list
+// row on the map without any network call, but only approximately. Measured
+// on 50 random places from the owner's export (scripts/accuracy.ts): half are
+// within 200 m, a third are 0.5 to 20 km off (places Google moved, and IDs
+// whose low bits are zeroed to a coarse cell). So the point narrows a search
+// to a region; it is never treated as the place's position.
 
 const LOOKUP_BITS = 4
 const SWAP = 1
