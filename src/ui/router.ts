@@ -2,11 +2,11 @@ import { useSyncExternalStore } from 'react'
 
 // Hash routes for the few full-screen pages; filters live in the query string.
 
-export type Route = 'map' | 'import' | 'settings'
+export type Route = 'map' | 'import' | 'settings' | 'stats'
 
 function current(): Route {
   const h = location.hash.replace(/^#\/?/, '')
-  return h === 'import' || h === 'settings' ? h : 'map'
+  return h === 'import' || h === 'settings' || h === 'stats' ? h : 'map'
 }
 
 export function navigate(route: Route): void {

@@ -6,6 +6,7 @@ import { buildDemoData } from '../dev/demoData'
 import { FixtureGeocoder } from '../dev/fixtureGeocoder'
 import { generateWorld } from '../dev/world'
 import { runPipeline, type PipelineProgress, type PipelineServices } from '../pipeline/runner'
+import { computeStats, type Stats } from '../stats/compute'
 import type { GeocoderId } from '../services/geocoder'
 import { NominatimGeocoder } from '../services/nominatim'
 import { PhotonGeocoder } from '../services/photon'
@@ -73,6 +74,19 @@ const api = {
 
   cancelPipeline(): void {
     controller?.abort()
+  },
+
+  /** Straight from IndexedDB, off the main thread; fast enough to recompute on every visit. */
+  async stats(): Promise<Stats> {
+    const db = getDb()
+    const [places, memberships, lists, userData, imports] = await Promise.all([
+      db.places.toArray(),
+      db.memberships.toArray(),
+      db.lists.toArray(),
+      db.userData.toArray(),
+      db.imports.toArray(),
+    ])
+    return computeStats({ places, memberships, lists, userData, imports })
   },
 }
 

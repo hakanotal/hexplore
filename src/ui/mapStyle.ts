@@ -138,7 +138,8 @@ export function composeStyle(base: StyleSpecification, input: ComposeInput): Sty
   }
 
   Object.assign(sources, placeSources(input.data))
-  layers.push(...placeLayers(theme, { glyphs, selectedId: input.selectedId }))
+  layers.push(...placeLayers(theme, { glyphs, selectedId: input.selectedId, heatmap: details.heatmap }))
+  if (details.heatmap) applied.push('heatmap')
 
   const out: StyleSpecification = {
     ...style,

@@ -36,10 +36,12 @@ export const DARK_THEME: MapTheme = {
   space: '#05070d',
 }
 
-export const PLACE_SOURCE_IDS = ['places', 'near', 'me'] as const
+export const PLACE_SOURCE_IDS = ['places', 'heat', 'near', 'me'] as const
 
 export interface PlaceData {
   places: FC
+  /** Visited places among the results, unclustered, for the heatmap. */
+  heat: FC
   near: FC
   me: FC
 }
@@ -47,16 +49,50 @@ export interface PlaceData {
 export function placeSources(data: PlaceData): Record<string, SourceSpecification> {
   return {
     places: { type: 'geojson', data: data.places, cluster: true, clusterRadius: 44, clusterMaxZoom: 14 },
+    heat: { type: 'geojson', data: data.heat },
     near: { type: 'geojson', data: data.near },
     me: { type: 'geojson', data: data.me },
   }
 }
 
+/** Density of visited places: one blue, transparent where there are none, darker where there are many. */
+function heatmap(theme: MapTheme): LayerSpecification {
+  return {
+    id: 'heat',
+    type: 'heatmap',
+    source: 'heat',
+    maxzoom: 17,
+    paint: {
+      'heatmap-weight': 1,
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.6, 9, 1.2, 15, 2],
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 3, 6, 10, 10, 18, 15, 30],
+      'heatmap-color': [
+        'interpolate',
+        ['linear'],
+        ['heatmap-density'],
+        0,
+        'rgba(37,99,235,0)',
+        0.15,
+        theme.dark ? 'rgba(147,197,253,0.55)' : 'rgba(147,197,253,0.6)',
+        0.4,
+        '#60a5fa',
+        0.7,
+        '#2563eb',
+        1,
+        theme.dark ? '#dbeafe' : '#1e3a8a',
+      ],
+      // Points take over close in.
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.85, 16, 0.3],
+    },
+  }
+}
+
 /** Your places, the radius ring and your location, always above the base map. */
-export function placeLayers(theme: MapTheme, opts: { glyphs: boolean; selectedId: string | null }): LayerSpecification[] {
+export function placeLayers(theme: MapTheme, opts: { glyphs: boolean; selectedId: string | null; heatmap?: boolean }): LayerSpecification[] {
   const layers: LayerSpecification[] = [
     { id: 'near-fill', type: 'fill', source: 'near', paint: { 'fill-color': '#2563eb', 'fill-opacity': theme.dark ? 0.12 : 0.06 } },
     { id: 'near-line', type: 'line', source: 'near', paint: { 'line-color': theme.dark ? '#60a5fa' : '#2563eb', 'line-width': 1.5, 'line-dasharray': [2, 2] } },
+    ...(opts.heatmap ? [heatmap(theme)] : []),
     {
       id: 'clusters',
       type: 'circle',

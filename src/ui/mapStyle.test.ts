@@ -35,7 +35,7 @@ function compose(patch: Partial<Omit<ComposeInput, 'details'>> & { details?: Par
     basemap: 'light',
     trafficKey: '',
     network: true,
-    data: { places: FC(3), near: EMPTY, me: EMPTY },
+    data: { places: FC(3), heat: FC(2), near: EMPTY, me: EMPTY },
     selectedId: null,
     ...patch,
     details: { ...DEFAULT_DETAILS, ...patch.details },
@@ -44,13 +44,13 @@ function compose(patch: Partial<Omit<ComposeInput, 'details'>> & { details?: Par
 
 const ids = (s: StyleSpecification) => s.layers.map((l) => l.id)
 const layer = (s: StyleSpecification, id: string) => s.layers.find((l) => l.id === id) as LayerSpecification & { paint?: Record<string, unknown>; filter?: unknown }
-const ALL_ON: MapDetails = { transit: true, traffic: true, terrain: true, buildings: true, globe: true }
+const ALL_ON: MapDetails = { transit: true, traffic: true, terrain: true, buildings: true, heatmap: true, globe: true }
 
 describe('composeStyle', () => {
   // MapLibre drops the whole style change when one expression is invalid, so
   // every combination has to pass the style spec.
   it('produces a valid style for every map type and detail', () => {
-    const detailSets: Partial<MapDetails>[] = [{}, ALL_ON, { transit: true }, { terrain: true }, { buildings: true }, { traffic: true }, { globe: true }]
+    const detailSets: Partial<MapDetails>[] = [{}, ALL_ON, { transit: true }, { terrain: true }, { buildings: true }, { traffic: true }, { heatmap: true }, { globe: true }]
     for (const basemap of ['light', 'streets', 'dark', 'satellite'] as BasemapId[]) {
       for (const details of detailSets) {
         const errors = validateStyleMin(compose({ basemap, details, trafficKey: 'k', selectedId: 'p1' }))
@@ -70,8 +70,10 @@ describe('composeStyle', () => {
 
   it('carries the current data and selection so a style swap keeps your points', () => {
     const places = FC(5)
-    const s = compose({ data: { places, near: EMPTY, me: EMPTY }, selectedId: 'p2' })
+    const heat = FC(2)
+    const s = compose({ data: { places, heat, near: EMPTY, me: EMPTY }, selectedId: 'p2' })
     expect(s.sources.places).toMatchObject({ type: 'geojson', data: places, cluster: true })
+    expect(s.sources.heat).toMatchObject({ type: 'geojson', data: heat })
     expect(layer(s, 'selected').filter).toEqual(['==', ['get', 'id'], 'p2'])
   })
 
@@ -102,10 +104,10 @@ describe('composeStyle', () => {
     }
     // Stations above base labels, below your places.
     expect(at('hx-transit-stations')).toBe(at('label_city') + 1)
-    expect(order.slice(-PLACE_LAYERS.length)).toEqual(PLACE_LAYERS)
+    expect(order.slice(-PLACE_LAYERS.length - 1)).toEqual(['near-fill', 'near-line', 'heat', ...PLACE_LAYERS.slice(2)])
     expect(s.projection).toEqual({ type: 'globe' })
     expect(s.sky).toBeDefined()
-    expect(s.metadata).toMatchObject({ 'hexplore:basemap': 'light', 'hexplore:details': ['terrain', 'traffic', 'buildings', 'transit', 'globe'] })
+    expect(s.metadata).toMatchObject({ 'hexplore:basemap': 'light', 'hexplore:details': ['terrain', 'traffic', 'buildings', 'transit', 'heatmap', 'globe'] })
   })
 
   it('puts hill shading right above the imagery on satellite', () => {
@@ -124,8 +126,9 @@ describe('composeStyle', () => {
   it('adds nothing that fetches tiles when offline', () => {
     for (const basemap of ['light', 'streets', 'dark', 'satellite'] as BasemapId[]) {
       const s = compose({ basemap, network: false, details: ALL_ON, trafficKey: 'k' }, BLANK_STYLE)
-      expect(Object.keys(s.sources).sort()).toEqual(['me', 'near', 'places'])
-      expect(ids(s)).toEqual(['background', 'near-fill', 'near-line', 'clusters', 'points', 'selected', 'me'])
+      // The heatmap is your own data, so it works offline too.
+      expect(Object.keys(s.sources).sort()).toEqual(['heat', 'me', 'near', 'places'])
+      expect(ids(s)).toEqual(['background', 'near-fill', 'near-line', 'heat', 'clusters', 'points', 'selected', 'me'])
       expect(s.projection).toEqual({ type: 'globe' })
       expect(layer(s, 'clusters').paint?.['circle-color']).toBe(LIGHT_THEME.cluster)
     }

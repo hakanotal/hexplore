@@ -12,9 +12,10 @@ import { navigate, useRoute } from './ui/router'
 import { useApp } from './state/store'
 import { startPipeline } from './state/actions'
 
-// Import and settings are rarely used; keep them out of the startup bundle.
+// Import, stats and settings are occasional; keep them out of the startup bundle.
 const ImportScreen = lazy(() => import('./ui/ImportScreen').then((m) => ({ default: m.ImportScreen })))
 const SettingsScreen = lazy(() => import('./ui/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
+const StatsScreen = lazy(() => import('./ui/StatsScreen').then((m) => ({ default: m.StatsScreen })))
 
 export default function App() {
   const route = useRoute()
@@ -53,6 +54,7 @@ export default function App() {
       <Suspense fallback={null}>
         {route === 'import' && <ImportScreen />}
         {route === 'settings' && <SettingsScreen />}
+        {route === 'stats' && <StatsScreen />}
       </Suspense>
     </div>
   )

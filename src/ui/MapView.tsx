@@ -26,6 +26,12 @@ function toGeoJSON(items: PlaceView[]): FC {
   return { type: 'FeatureCollection', features }
 }
 
+function visitedPoints(items: PlaceView[]): FC {
+  const features: GeoJSON.Feature<GeoJSON.Point>[] = []
+  for (const v of items) if (v.visited && v.lat !== undefined && v.lng !== undefined) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [v.lng, v.lat] }, properties: {} })
+  return { type: 'FeatureCollection', features }
+}
+
 function circlePolygon(center: { lat: number; lng: number }, km: number, steps = 64): FC {
   const coords: [number, number][] = []
   for (let i = 0; i <= steps; i++) {
@@ -65,7 +71,7 @@ export function MapView() {
   const sheet = useApp((s) => s.sheet)
 
   // The latest data for each of our sources, so a style swap keeps your points.
-  const dataRef = useRef<PlaceData>({ places: EMPTY, near: EMPTY, me: EMPTY })
+  const dataRef = useRef<PlaceData>({ places: EMPTY, heat: EMPTY, near: EMPTY, me: EMPTY })
   const selectedRef = useRef<string | null>(null)
   const basemap = useMapPrefs((s) => s.basemap)
   const space = themeFor(basemap, typeof baseStyleFor(basemap) === 'string').space
@@ -185,7 +191,11 @@ export function MapView() {
   // Rebuild the source from the filtered set; stays well under 50 ms at 10k places.
   useEffect(() => {
     dataRef.current.places = toGeoJSON(result)
-    if (loaded) mapRef.current?.getSource<GeoJSONSource>('places')?.setData(dataRef.current.places)
+    dataRef.current.heat = visitedPoints(result)
+    if (loaded) {
+      mapRef.current?.getSource<GeoJSONSource>('places')?.setData(dataRef.current.places)
+      mapRef.current?.getSource<GeoJSONSource>('heat')?.setData(dataRef.current.heat)
+    }
   }, [loaded, result])
 
   useEffect(() => {

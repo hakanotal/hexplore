@@ -64,6 +64,7 @@ export function SearchBar({ onOpenFilters }: { onOpenFilters: () => void }) {
         </button>
         {menu && (
           <div className="absolute right-0 top-12 w-56 overflow-hidden rounded-xl bg-white py-1 text-[15px] shadow-lg ring-1 ring-slate-200" onClick={() => setMenu(false)}>
+            <MenuItem onClick={() => navigate('stats')}>Stats</MenuItem>
             <MenuItem onClick={() => navigate('import')}>Import Takeout</MenuItem>
             <MenuItem
               onClick={() => {

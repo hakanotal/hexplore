@@ -32,6 +32,18 @@ const DETAILS: { id: DetailId; label: string; icon: ReactNode }[] = [
     icon: <path d="M3 20.5h18M5 20.5V9l5-3v14.5M10 20.5V4l9 3.5v13M13 9.5h3M13 12.5h3M13 15.5h3M7 12h1M7 15h1" />,
   },
   {
+    id: 'heatmap',
+    label: 'Visited heatmap',
+    icon: (
+      <>
+        <circle cx="9" cy="10" r="5.5" />
+        <circle cx="9" cy="10" r="2" />
+        <circle cx="16.5" cy="15.5" r="4" />
+        <circle cx="16.5" cy="15.5" r="1.2" />
+      </>
+    ),
+  },
+  {
     id: 'globe',
     label: 'Globe',
     icon: (
@@ -93,7 +105,7 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <h2 className="mt-5 text-[15px] font-semibold text-slate-900">Map details</h2>
-        <div className="mt-2 grid grid-cols-5 gap-2">
+        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
           {DETAILS.map((d) => {
             const on = details[d.id]
             return (
