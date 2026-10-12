@@ -102,7 +102,10 @@ export function PlaceCard({ id }: { id: string }) {
           )}
           {p.resolveCandidates?.map((c, i) => (
             <div key={i} className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-white dark:bg-slate-900 px-3 py-2 ring-1 ring-amber-100 dark:ring-amber-900">
-              <div className="min-w-0 text-[13px]">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-600 text-[12px] font-semibold text-white" aria-hidden>
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1 text-[13px]">
                 <div className="truncate font-medium text-slate-900 dark:text-slate-100">{c.name}</div>
                 <div className="truncate text-slate-500 dark:text-slate-400">{c.address ?? `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`}</div>
               </div>

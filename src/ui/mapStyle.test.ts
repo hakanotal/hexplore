@@ -28,14 +28,14 @@ const FC = (n: number): GeoJSON.FeatureCollection => ({
 })
 
 const EMPTY = FC(0)
-const PLACE_LAYERS = ['near-fill', 'near-line', 'clusters', 'cluster-count', 'points', 'selected', 'me']
+const PLACE_LAYERS = ['near-fill', 'near-line', 'near-want', 'clusters', 'cluster-count', 'points', 'point-icons', 'candidate-dots', 'candidate-labels', 'selected', 'me']
 
 function compose(patch: Partial<Omit<ComposeInput, 'details'>> & { details?: Partial<MapDetails> } = {}, base = BASE): StyleSpecification {
   return composeStyle(base, {
     basemap: 'light',
     trafficKey: '',
     network: true,
-    data: { places: FC(3), heat: FC(2), near: EMPTY, me: EMPTY },
+    data: { places: FC(3), heat: FC(2), near: EMPTY, candidates: EMPTY, me: EMPTY },
     selectedId: null,
     ...patch,
     details: { ...DEFAULT_DETAILS, ...patch.details },
@@ -71,12 +71,17 @@ describe('composeStyle', () => {
   it('carries the current data and selection so a style swap keeps your points', () => {
     const places = FC(5)
     const heat = FC(2)
-    const s = compose({ data: { places, heat, near: EMPTY, me: EMPTY }, selectedId: 'p2' })
+    const s = compose({ data: { places, heat, near: EMPTY, candidates: FC(2), me: EMPTY }, selectedId: 'p2' })
     // Every place is its own dot by default; grouping is opt-in.
     expect(s.sources.places).toEqual({ type: 'geojson', data: places })
     expect(compose({ details: { cluster: true } }).sources.places).toMatchObject({ cluster: true, clusterRadius: 44 })
     expect(s.sources.heat).toMatchObject({ type: 'geojson', data: heat })
     expect(layer(s, 'selected').filter).toEqual(['==', ['get', 'id'], 'p2'])
+  })
+
+  it('shows the want-to-go halo only with the near-me ring', () => {
+    expect(layer(compose(), 'near-want').layout).toMatchObject({ visibility: 'none' })
+    expect(layer(compose({ near: true }), 'near-want').layout).toMatchObject({ visibility: 'visible' })
   })
 
   it('never mutates the cached base style', () => {
@@ -106,7 +111,7 @@ describe('composeStyle', () => {
     }
     // Stations above base labels, below your places.
     expect(at('hx-transit-stations')).toBe(at('label_city') + 1)
-    expect(order.slice(-PLACE_LAYERS.length - 1)).toEqual(['near-fill', 'near-line', 'heat', ...PLACE_LAYERS.slice(2)])
+    expect(order.slice(-PLACE_LAYERS.length - 1)).toEqual(['near-fill', 'near-line', 'near-want', 'heat', ...PLACE_LAYERS.slice(3)])
     expect(s.projection).toEqual({ type: 'globe' })
     expect(s.sky).toBeDefined()
     expect(s.metadata).toMatchObject({ 'hexplore:basemap': 'light', 'hexplore:details': ['terrain', 'traffic', 'buildings', 'transit', 'heatmap', 'cluster', 'globe'] })
@@ -129,8 +134,9 @@ describe('composeStyle', () => {
     for (const basemap of ['light', 'streets', 'dark', 'satellite'] as BasemapId[]) {
       const s = compose({ basemap, network: false, details: ALL_ON, trafficKey: 'k' }, BLANK_STYLE)
       // The heatmap is your own data, so it works offline too.
-      expect(Object.keys(s.sources).sort()).toEqual(['heat', 'me', 'near', 'places'])
-      expect(ids(s)).toEqual(['background', 'near-fill', 'near-line', 'heat', 'clusters', 'points', 'selected', 'me'])
+      expect(Object.keys(s.sources).sort()).toEqual(['candidates', 'heat', 'me', 'near', 'places'])
+      // No glyphs offline: icons stay (drawn locally), text labels go.
+      expect(ids(s)).toEqual(['background', 'near-fill', 'near-line', 'near-want', 'heat', 'clusters', 'points', 'point-icons', 'candidate-dots', 'selected', 'me'])
       expect(s.projection).toEqual({ type: 'globe' })
       expect(layer(s, 'clusters').paint?.['circle-color']).toBe(LIGHT_THEME.cluster)
     }

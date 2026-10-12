@@ -81,6 +81,8 @@ export interface ComposeInput {
   network: boolean
   data: PlaceData
   selectedId: string | null
+  /** The near-me ring is on, so want-to-go places in it get a halo. */
+  near?: boolean
 }
 
 export function themeFor(basemap: BasemapId, network: boolean): MapTheme {
@@ -139,7 +141,7 @@ export function composeStyle(base: StyleSpecification, input: ComposeInput): Sty
 
   Object.assign(sources, placeSources(input.data, { cluster: details.cluster }))
   // Cluster layers stay in the style either way; without clustering they simply match nothing.
-  layers.push(...placeLayers(theme, { glyphs, selectedId: input.selectedId, heatmap: details.heatmap }))
+  layers.push(...placeLayers(theme, { glyphs, selectedId: input.selectedId, heatmap: details.heatmap, near: input.near }))
   if (details.heatmap) applied.push('heatmap')
   if (details.cluster) applied.push('cluster')
 

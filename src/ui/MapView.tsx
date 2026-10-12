@@ -7,6 +7,7 @@ import type { PlaceView } from '../query/placeView'
 import { useMapPrefs, type DetailId } from '../state/mapPrefs'
 import { useApp } from '../state/store'
 import { baseStyleFor, BLANK_STYLE, composeStyle, themeFor, TRAFFIC_SOURCE } from './mapStyle'
+import { drawCategoryIcon, ICON_PREFIX } from './categoryIcons'
 import type { PlaceData } from './placeLayers'
 
 setWorkerUrl(workerUrl)
@@ -20,7 +21,7 @@ function toGeoJSON(items: PlaceView[]): FC {
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [v.lng, v.lat] },
-      properties: { id: v.id, color: categoryColor(v.place.category), visited: v.visited ? 1 : 0, want: v.wantToGo ? 1 : 0 },
+      properties: { id: v.id, category: v.place.category ?? 'other', color: categoryColor(v.place.category), visited: v.visited ? 1 : 0, want: v.wantToGo ? 1 : 0 },
     })
   }
   return { type: 'FeatureCollection', features }
@@ -71,7 +72,7 @@ export function MapView() {
   const sheet = useApp((s) => s.sheet)
 
   // The latest data for each of our sources, so a style swap keeps your points.
-  const dataRef = useRef<PlaceData>({ places: EMPTY, heat: EMPTY, near: EMPTY, me: EMPTY })
+  const dataRef = useRef<PlaceData>({ places: EMPTY, heat: EMPTY, near: EMPTY, candidates: EMPTY, me: EMPTY })
   const selectedRef = useRef<string | null>(null)
   const basemap = useMapPrefs((s) => s.basemap)
   const space = themeFor(basemap, typeof baseStyleFor(basemap) === 'string').space
@@ -104,7 +105,15 @@ export function MapView() {
       const network = typeof base === 'string'
       // A rejected key drops the layer instead of failing on every tile.
       const compose = (style: StyleSpecification) =>
-        composeStyle(style, { basemap, details, trafficKey: trafficError ? '' : trafficKey, network, data: dataRef.current, selectedId: selectedRef.current })
+        composeStyle(style, {
+          basemap,
+          details,
+          trafficKey: trafficError ? '' : trafficKey,
+          network,
+          data: dataRef.current,
+          selectedId: selectedRef.current,
+          near: !!useApp.getState().filters.near,
+        })
       const ready = typeof base === 'string' ? bases.get(base) : base
       // Only an unfetched URL goes through transformStyle: MapLibre holds such a
       // swap until the current style loads, which a failed one never does.
@@ -120,6 +129,13 @@ export function MapView() {
     }
     applyStyle()
     map.on('style.load', () => (styleLoaded = true))
+    // Category icons are drawn the first time a layer asks for them, on every style.
+    // MapLibre 6 waits for this resolver; the older styleimagemissing event comes too late.
+    map.setMissingStyleImageResolver((id) => {
+      if (!id.startsWith(ICON_PREFIX) || map.hasImage(id)) return
+      const img = drawCategoryIcon(id)
+      if (img) map.addImage(id, img, { pixelRatio: 2 })
+    })
 
     const unsubscribe = useMapPrefs.subscribe((s, prev) => {
       if (s.basemap === prev.basemap && s.details === prev.details && s.trafficKey === prev.trafficKey && s.trafficError === prev.trafficError) return
@@ -204,7 +220,19 @@ export function MapView() {
     mapRef.current?.setFilter('selected', ['==', ['get', 'id'], selectedId ?? ''])
     const v = selectedId ? byId.get(selectedId) : undefined
     const map = mapRef.current
-    if (map && v?.lat !== undefined && v.lng !== undefined) {
+    // A place waiting for a check shows its alternatives, numbered like the card.
+    const candidates = v && (v.place.resolveStatus === 'review' || v.place.resolveStatus === 'flagged') ? (v.place.resolveCandidates ?? []) : []
+    dataRef.current.candidates = {
+      type: 'FeatureCollection',
+      features: candidates.map((c, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { n: i + 1 } })),
+    }
+    map?.getSource<GeoJSONSource>('candidates')?.setData(dataRef.current.candidates)
+    if (map && candidates.length) {
+      const b = new LngLatBounds()
+      for (const c of candidates) b.extend([c.lng, c.lat])
+      if (v?.lat !== undefined && v.lng !== undefined) b.extend([v.lng, v.lat])
+      map.fitBounds(b, { padding: { top: 90, bottom: window.innerHeight * 0.58, left: 40, right: 40 }, maxZoom: 15, duration: 600 })
+    } else if (map && v?.lat !== undefined && v.lng !== undefined) {
       const bounds = map.getBounds()
       if (!bounds.contains([v.lng, v.lat]) || map.getZoom() < 12) {
         map.easeTo({ center: [v.lng, v.lat], zoom: Math.max(map.getZoom(), 14), padding: { bottom: window.innerHeight * 0.45, top: 0, left: 0, right: 0 } })
@@ -221,6 +249,7 @@ export function MapView() {
     dataRef.current.near = near ? circlePolygon(near, near.km) : EMPTY
     map.getSource<GeoJSONSource>('me')?.setData(dataRef.current.me)
     map.getSource<GeoJSONSource>('near')?.setData(dataRef.current.near)
+    if (map.getLayer('near-want')) map.setLayoutProperty('near-want', 'visibility', near ? 'visible' : 'none')
     if (near) {
       const ring = circlePolygon(near, near.km).features[0]!.geometry as GeoJSON.Polygon
       const b = new LngLatBounds()
