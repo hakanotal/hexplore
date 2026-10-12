@@ -163,12 +163,15 @@ describe('composeStyle', () => {
 
 describe('restorePrefs', () => {
   it('falls back to defaults for missing or unknown values', () => {
-    expect(restorePrefs(undefined)).toEqual({ basemap: 'light', details: DEFAULT_DETAILS, trafficKey: '' })
+    expect(restorePrefs(undefined)).toEqual({ basemap: 'light', details: DEFAULT_DETAILS, trafficKey: '', hideWantToGo: false })
     expect(restorePrefs({ basemap: 'hybrid', details: { transit: true, bogus: true, globe: 'yes' }, trafficKey: 4 })).toEqual({
       basemap: 'light',
       details: { ...DEFAULT_DETAILS, transit: true },
       trafficKey: '',
+      hideWantToGo: false,
     })
     expect(restorePrefs({ basemap: 'satellite', details: { globe: true }, trafficKey: 'k' })).toMatchObject({ basemap: 'satellite', trafficKey: 'k' })
+    expect(restorePrefs({ hideWantToGo: true }).hideWantToGo).toBe(true)
+    expect(restorePrefs({ hideWantToGo: 'yes' }).hideWantToGo).toBe(false)
   })
 })

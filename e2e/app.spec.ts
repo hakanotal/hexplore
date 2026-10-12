@@ -144,6 +144,25 @@ test.describe('phases 2 and 3', () => {
     await expect(page.getByRole('button', { name: 'Drawn area ✕' })).toBeVisible()
   })
 
+  test('want-to-go places can be hidden from the map and the list, and stay hidden', async ({ page }) => {
+    const count = async () => Number((await page.getByTestId('result-count').innerText()).match(/[\d,]+/)![0].replace(/,/g, ''))
+    const all = await count()
+    await page.getByRole('button', { name: 'Map layers' }).click()
+    await page.getByRole('switch', { name: /Show want-to-go places/ }).click()
+    await page.getByRole('button', { name: 'Close' }).first().click()
+    await expect(page.getByRole('button', { name: 'Want to go hidden ✕' })).toBeVisible()
+    const shown = await count()
+    expect(shown).toBeLessThan(all)
+
+    // Filtering for want to go now finds nothing, and a reload keeps it hidden.
+    await page.goto('/?status=wantToGo')
+    await expect(page.getByTestId('result-count')).toHaveText(/^0 places/)
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Want to go hidden ✕' })).toBeVisible()
+    await page.getByRole('button', { name: 'Want to go hidden ✕' }).click()
+    await expect.poll(count).toBe(all)
+  })
+
   test('the theme can be forced dark and back', async ({ page }) => {
     await page.goto('/#/settings')
     await page.getByRole('radio', { name: 'Dark' }).click()

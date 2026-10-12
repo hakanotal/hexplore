@@ -1,6 +1,7 @@
 import { categoryLabel } from '../domain/taxonomy'
 import type { Facet } from '../query/filters'
 import { useApp, type SortMode } from '../state/store'
+import { useMapPrefs } from '../state/mapPrefs'
 
 const SORT_LABEL: Record<SortMode, string> = { relevance: 'Best match', distance: 'Nearest', recent: 'Newest', name: 'A–Z' }
 
@@ -16,6 +17,7 @@ export function SheetHeader() {
   const setFilters = useApp((s) => s.setFilters)
   const setSort = useApp((s) => s.setSort)
   const clear = useApp((s) => s.clearFilters)
+  const hideWantToGo = useMapPrefs((s) => s.hideWantToGo)
 
   const chips: { key: string; label: string; remove: () => void }[] = []
   const facetLabel = (facet: Facet, v: string) =>
@@ -26,6 +28,8 @@ export function SheetHeader() {
   if (filters.hasNotes) chips.push({ key: 'notes', label: 'Has notes', remove: () => setFilters({ hasNotes: false }) })
   if (filters.needsReview) chips.push({ key: 'review', label: 'Needs a check', remove: () => setFilters({ needsReview: false }) })
   if (filters.openNow) chips.push({ key: 'open', label: 'Open now', remove: () => setFilters({ openNow: false }) })
+  // A view preference, not a filter: Clear leaves it, its own chip turns it off.
+  if (hideWantToGo) chips.push({ key: 'hide-want', label: 'Want to go hidden', remove: () => useMapPrefs.getState().setHideWantToGo(false) })
   if (filters.bbox) chips.push({ key: 'bbox', label: 'This area', remove: () => setFilters({ bbox: undefined }) })
   if (filters.area) chips.push({ key: 'area', label: 'Drawn area', remove: () => setFilters({ area: undefined }) })
   if (filters.near) chips.push({ key: 'near', label: `Within ${filters.near.km < 1 ? `${filters.near.km * 1000} m` : `${filters.near.km} km`}`, remove: () => setFilters({ near: undefined }) })

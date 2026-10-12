@@ -9,6 +9,7 @@ import { SpatialIndex } from '../query/spatial'
 import type { PipelineProgress } from '../pipeline/runner'
 import { haversineKm } from '../pipeline/similarity'
 import { searchWorker } from '../workers/client'
+import { useMapPrefs } from './mapPrefs'
 
 export type SheetSnap = 'peek' | 'half' | 'full'
 export type SortMode = 'relevance' | 'distance' | 'recent' | 'name'
@@ -60,6 +61,8 @@ interface AppState {
   setMapView(center: LatLng, bounds: [number, number, number, number]): void
   requestFit(): void
   setPipeline(p: PipelineProgress | null): void
+  /** Recomputes results after a view preference changes. */
+  refreshResults(): void
 }
 
 function sortItems(items: PlaceView[], sort: SortMode, loc: LatLng | null, hits: Map<string, number> | null): PlaceView[] {
@@ -86,7 +89,9 @@ let searchSeq = 0
 export const useApp = create<AppState>((set, get) => {
   const recompute = (patch: Partial<AppState> = {}) => {
     const s = { ...get(), ...patch }
-    const { items, counts } = applyFilters(s.views, s.filters, s.hits)
+    // Hidden want-to-go places leave the result set itself, so the map, list and counts agree.
+    const views = useMapPrefs.getState().hideWantToGo ? s.views.filter((v) => !v.wantToGo) : s.views
+    const { items, counts } = applyFilters(views, s.filters, s.hits)
     set({ ...patch, result: sortItems(items, s.sort, s.userLocation, s.hits), counts })
   }
 
@@ -230,5 +235,13 @@ export const useApp = create<AppState>((set, get) => {
     setPipeline(pipeline) {
       set({ pipeline })
     },
+
+    refreshResults() {
+      recompute()
+    },
   }
+})
+
+useMapPrefs.subscribe((s, prev) => {
+  if (s.hideWantToGo !== prev.hideWantToGo) useApp.getState().refreshResults()
 })

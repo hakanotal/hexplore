@@ -70,6 +70,7 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
   const details = useMapPrefs((s) => s.details)
   const trafficKey = useMapPrefs((s) => s.trafficKey)
   const trafficError = useMapPrefs((s) => s.trafficError)
+  const hideWantToGo = useMapPrefs((s) => s.hideWantToGo)
   const panel = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -113,6 +114,21 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
             </label>
           ))}
         </div>
+
+        <h2 className="mt-5 text-[15px] font-semibold text-slate-900 dark:text-slate-100">Places</h2>
+        <label className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200 dark:bg-slate-800/60 dark:ring-slate-700">
+          <span className="text-[14px] text-slate-800 dark:text-slate-200">
+            Show want-to-go places
+            <span className="block text-[12px] text-slate-500 dark:text-slate-400">Off hides them from the map and the list</span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={!hideWantToGo}
+            onChange={(e) => useMapPrefs.getState().setHideWantToGo(!e.target.checked)}
+            className="h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors before:block before:h-4 before:w-4 before:translate-x-0.5 before:translate-y-0.5 before:rounded-full before:bg-white before:shadow before:transition-transform checked:bg-blue-600 checked:before:translate-x-4 dark:bg-slate-600"
+          />
+        </label>
 
         <h2 className="mt-5 text-[15px] font-semibold text-slate-900 dark:text-slate-100">Map details</h2>
         <div className="mt-2 grid grid-cols-4 gap-2">

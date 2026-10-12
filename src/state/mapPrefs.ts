@@ -18,14 +18,17 @@ interface MapPrefsState {
   trafficKey: string
   /** Set when TomTom rejects the key. Not persisted. */
   trafficError: string | null
+  /** Hide places you only want to go to, from the map and the list alike. */
+  hideWantToGo: boolean
 
   setBasemap(id: BasemapId): void
   toggleDetail(id: DetailId): void
   setTrafficKey(key: string): void
   setTrafficError(message: string | null): void
+  setHideWantToGo(hide: boolean): void
 }
 
-type Persisted = Pick<MapPrefsState, 'basemap' | 'details' | 'trafficKey'>
+type Persisted = Pick<MapPrefsState, 'basemap' | 'details' | 'trafficKey' | 'hideWantToGo'>
 
 /** Reads stored prefs defensively: unknown ids and missing details fall back to defaults. */
 export function restorePrefs(stored: unknown): Persisted {
@@ -36,6 +39,7 @@ export function restorePrefs(stored: unknown): Persisted {
     basemap: p.basemap && BASEMAP_IDS.includes(p.basemap) ? p.basemap : 'light',
     details,
     trafficKey: typeof p.trafficKey === 'string' ? p.trafficKey : '',
+    hideWantToGo: p.hideWantToGo === true,
   }
 }
 
@@ -48,6 +52,7 @@ export const useMapPrefs = create<MapPrefsState>()(
       details: DEFAULT_DETAILS,
       trafficKey: '',
       trafficError: null,
+      hideWantToGo: false,
 
       setBasemap(basemap) {
         set({ basemap })
@@ -61,12 +66,15 @@ export const useMapPrefs = create<MapPrefsState>()(
       setTrafficError(trafficError) {
         if (trafficError !== get().trafficError) set({ trafficError })
       },
+      setHideWantToGo(hideWantToGo) {
+        set({ hideWantToGo })
+      },
     }),
     {
       name: 'hexplore:map',
       version: 1,
       storage: createJSONStorage(() => window.localStorage),
-      partialize: (s): Persisted => ({ basemap: s.basemap, details: s.details, trafficKey: s.trafficKey }),
+      partialize: (s): Persisted => ({ basemap: s.basemap, details: s.details, trafficKey: s.trafficKey, hideWantToGo: s.hideWantToGo }),
       merge: (persisted, current) => ({ ...current, ...restorePrefs(persisted) }),
     },
   ),
