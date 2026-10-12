@@ -92,3 +92,66 @@ test.describe('import and browse', () => {
     await expect(page.getByTestId('layers-panel').getByRole('button', { name: 'Globe' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
+
+test.describe('phases 2 and 3', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/#/import')
+    await page.getByTestId('import-sample').click()
+    await page.getByTestId('save-roles').click()
+    await expect(page.getByTestId('pipeline-banner')).toBeHidden({ timeout: 60_000 })
+  })
+
+  test('stats open the matching places on the map', async ({ page }) => {
+    await page.getByRole('button', { name: 'Menu' }).click()
+    await page.getByRole('button', { name: 'Stats' }).click()
+    await expect(page.getByRole('button', { name: /^Saved: \d+/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Coverage' })).toBeVisible()
+    await page.getByRole('button', { name: /^Türkiye: \d+ visited of \d+ saved\. Show on map$/ }).first().click()
+    await expect(page).toHaveURL(/country=T%C3%BCrkiye/)
+    await expect(page.getByRole('button', { name: 'Türkiye ✕' })).toBeVisible()
+  })
+
+  test('a saved view brings its filters back', async ({ page }) => {
+    await page.goto('/?cat=cafe&status=wantToGo')
+    await page.getByRole('button', { name: 'Filters' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Filters' })
+    await dialog.getByRole('button', { name: 'Save current filters' }).click()
+    await dialog.getByLabel('View name').fill('Cafes to try')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Clear all' }).click()
+    await expect(page).not.toHaveURL(/cat=cafe/)
+    await dialog.getByRole('button', { name: 'Cafes to try', exact: true }).click()
+    await expect(page).toHaveURL(/cat=cafe/)
+    await expect(page).toHaveURL(/status=wantToGo/)
+  })
+
+  test('open now and the lasso are filters in the URL', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click()
+    await page.getByRole('dialog', { name: 'Filters' }).getByRole('button', { name: 'Open now' }).click()
+    await expect(page).toHaveURL(/open=1/)
+    await page.getByTestId('show-results').click()
+    await expect(page.getByRole('button', { name: 'Open now ✕' })).toBeVisible()
+
+    await expect(page.getByTestId('map')).toHaveAttribute('data-loaded', 'true')
+    await page.getByRole('button', { name: 'Draw area' }).click()
+    await page.getByTestId('lasso').waitFor()
+    await page.mouse.move(100, 200)
+    await page.mouse.down()
+    const loop: [number, number][] = [[300, 200], [300, 450], [100, 450], [100, 210]]
+    for (const [x, y] of loop) await page.mouse.move(x, y, { steps: 5 })
+    await page.mouse.up()
+    await expect(page).toHaveURL(/area=/)
+    await expect(page.getByRole('button', { name: 'Drawn area ✕' })).toBeVisible()
+  })
+
+  test('the theme can be forced dark and back', async ({ page }) => {
+    await page.goto('/#/settings')
+    await page.getByRole('radio', { name: 'Dark' }).click()
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await page.reload()
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await page.getByRole('radio', { name: 'Light' }).click()
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
+  })
+})
+

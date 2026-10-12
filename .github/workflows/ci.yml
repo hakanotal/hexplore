@@ -42,3 +42,35 @@ jobs:
           name: playwright-report
           path: test-results
           retention-days: 7
+
+  # Preview deploys on Cloudflare Pages: every push to main and every pull
+  # request gets its own URL. Skipped until the repository has the secrets
+  # CLOUDFLARE_API_TOKEN (Pages: Edit) and CLOUDFLARE_ACCOUNT_ID. PLACES_API_KEY
+  # is optional; it ends up in the built JS, so restrict the key to your Pages
+  # domains in Google Cloud.
+  deploy:
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CLOUDFLARE_API_TOKEN != ''
+      - uses: actions/setup-node@v4
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.CLOUDFLARE_API_TOKEN != ''
+      - run: npm run build
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+      - uses: cloudflare/wrangler-action@v3
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=hexplore --branch=${{ github.head_ref || github.ref_name }}

@@ -15,6 +15,7 @@
     "fixtures": "tsx scripts/generate-fixtures.ts",
     "inspect:takeout": "tsx scripts/inspect-takeout.ts",
     "accuracy": "tsx scripts/accuracy.ts",
+    "compare-models": "tsx scripts/compare-models.ts",
     "check:bundle": "tsx scripts/check-bundle.ts"
   },
   "dependencies": {
