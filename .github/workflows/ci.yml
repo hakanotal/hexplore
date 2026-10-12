@@ -44,33 +44,43 @@ jobs:
           retention-days: 7
 
   # Preview deploys on Cloudflare Pages: every push to main and every pull
-  # request gets its own URL. Skipped until the repository has the secrets
-  # CLOUDFLARE_API_TOKEN (Pages: Edit) and CLOUDFLARE_ACCOUNT_ID. PLACES_API_KEY
-  # is optional; it ends up in the built JS, so restrict the key to your Pages
-  # domains in Google Cloud.
+  # request from a branch of this repository (never a fork) gets its own URL.
+  # Skipped until the repository has the secrets CLOUDFLARE_API_TOKEN (Pages:
+  # Edit) and CLOUDFLARE_ACCOUNT_ID. Secrets reach only the step that needs
+  # them, never npm ci or the build of pull request code.
   deploy:
     needs: [check, e2e]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      - id: gate
+        env:
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        run: echo "enabled=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: steps.gate.outputs.enabled == 'true'
       - uses: actions/setup-node@v4
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: steps.gate.outputs.enabled == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-        if: env.CLOUDFLARE_API_TOKEN != ''
-      - run: npm run build
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: steps.gate.outputs.enabled == 'true'
+      - name: Build
+        if: steps.gate.outputs.enabled == 'true'
+        run: npm run build
         env:
-          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
-      - uses: cloudflare/wrangler-action@v3
-        if: env.CLOUDFLARE_API_TOKEN != ''
-        with:
-          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=hexplore --branch=${{ github.head_ref || github.ref_name }}
+          # The Places key ends up in the built JS, so only production builds from
+          # main get it; restrict it to your Pages domain in Google Cloud.
+          PLACES_API_KEY: ${{ github.event_name == 'push' && secrets.PLACES_API_KEY || '' }}
+      - name: Deploy
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        # Branch names come from whoever opens the pull request: pass them as
+        # data, reduced to safe characters, never into the script text.
+        run: |
+          branch="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-28)"
+          npx --yes wrangler@4 pages deploy dist --project-name=hexplore --branch="$branch"
