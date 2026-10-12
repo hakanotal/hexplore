@@ -1,7 +1,10 @@
 # Hexplore notes for Claude
 
 - Static PWA, no backend. React + Zustand + Tailwind v4, Dexie over IndexedDB, MapLibre v6, Comlink workers.
-- Run before pushing: `npm run lint && npm run typecheck && npm test && npm run build && npm run check:bundle`. E2E: `npm run e2e` (Playwright 1.56.1 pinned to match the preinstalled Chromium).
+- Run before pushing: `npm run lint && npm run typecheck && npm test && npm run build && npm run check:bundle`. E2E: `npm run e2e` (Playwright 1.56.1 pinned to match the preinstalled Chromium). On the owner's Mac that download stalls; run e2e through a temporary config that sets `channel: 'chrome'` (installed Chrome), and delete it afterwards.
+- Initial JS sits just under the 400 KB gate: anything not needed for first paint (screens, panels, overlays) loads lazily, and heavy work goes in the data worker.
+- Pipeline order is resolve -> match (Overpass) -> classify (Google types, then OSM tags) -> ai (OpenRouter, optional) -> area. Each stage marks places (`matchCheckedAt`, `aiClassifiedAt`) so `healQueue` backfills new stages once.
+- Links from imported or third-party data go through `safeHttpUrl` before reaching an href.
 - CI never calls live services. Use `FixtureGeocoder` or MSW for anything that would hit Photon, Nominatim, Overpass, OpenRouter or Google Places.
 - Import and merge are pure (`src/import/merge.ts`); keep storage out of them. Re-imports must never overwrite enrichment or `userData`.
 - Dexie schema changes go in a new `version()` block, never edit version 1.

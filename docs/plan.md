@@ -338,38 +338,38 @@ Each gate must pass before the next phase starts; a failed gate means fixing tha
 
 **Phase 0: Spike and setup**
 
-- [ ] Repo with Vite, TypeScript, React, ESLint, Vitest and Playwright; CI on GitHub Actions; preview deploys on Cloudflare Pages
-- [ ] Export your Takeout and parse it in a throwaway script; note any column variations
-- [ ] Geocode 50 sample places with Photon and Nominatim and measure the auto-resolve rate
-- [ ] Run 20 classification samples through 2 or 3 OpenRouter models
+- [x] Repo with Vite, TypeScript, React, ESLint, Vitest and Playwright; CI on GitHub Actions; preview deploys on Cloudflare Pages (job ready, needs the Cloudflare secrets)
+- [x] Export your Takeout and parse it in a throwaway script; note any column variations (`npm run inspect:takeout`)
+- [x] Geocode 50 sample places with Photon and Nominatim and measure the auto-resolve rate (Photon, against Google positions: `npm run accuracy`)
+- [ ] Run 20 classification samples through 2 or 3 OpenRouter models (`npm run compare-models` is ready; needs an OpenRouter key)
 
 **Phase 1: Import and resolution**
 
-- [ ] Zip and CSV parser with fixtures; feature ID extraction
-- [ ] Dexie schema and migrations
-- [ ] Merge, dedupe and re-import logic with an import summary
-- [ ] List role assignment screen
-- [ ] Resolution worker: geocoding, list-context biasing, LLM disambiguation, confidence scoring
-- [ ] Review queue with candidate map and manual pin
-- [ ] Backup export and import
+- [x] Zip and CSV parser with fixtures; feature ID extraction
+- [x] Dexie schema and migrations
+- [x] Merge, dedupe and re-import logic with an import summary
+- [x] List role assignment screen
+- [x] Resolution worker: geocoding, list-context biasing, LLM disambiguation, confidence scoring (plus Google Place Details by ID)
+- [x] Review queue with candidate map and manual pin
+- [x] Backup export and import
 
 **Phase 2: Map and browse**
 
-- [ ] Map with a quiet OpenFreeMap style, clustering, category icons and visited styling
-- [ ] Filter store, filter panel with live counts, filters in the URL
-- [ ] MiniSearch text search; near me with kdbush
-- [ ] Bottom sheet with virtualized list, place card and actions
-- [ ] Saved views
-- [ ] PWA manifest, service worker, persistent storage request
-- [ ] Performance pass on real devices
+- [x] Map with a quiet OpenFreeMap style, clustering, category icons and visited styling (clustering is opt-in)
+- [x] Filter store, filter panel with live counts, filters in the URL
+- [x] MiniSearch text search; near me with kdbush
+- [x] Bottom sheet with virtualized list, place card and actions
+- [x] Saved views
+- [x] PWA manifest, service worker, persistent storage request
+- [ ] Performance pass on real devices (budgets at 10,000 places pass in CI; phone runs still to do)
 
 **Phase 3: Enrichment and stats**
 
-- [ ] Overpass matching per area cluster
-- [ ] Taxonomy config, rule mapping, batched LLM classification
-- [ ] Reverse geocoding and area normalization
-- [ ] Stats worker, stats screen, heatmap layer
-- [ ] Resolution and classification accuracy sets
+- [x] Overpass matching per area cluster
+- [x] Taxonomy config, rule mapping, batched LLM classification
+- [x] Reverse geocoding and area normalization
+- [x] Stats worker, stats screen, heatmap layer
+- [x] Resolution and classification accuracy sets (classification set awaits your labels: `data/accuracy/classification.csv`)
 
 **Phase 4: AI assistant**
 
@@ -430,7 +430,7 @@ The two risks most likely to hurt are wrong coordinates for ambiguous names and 
 
 The plan assumes React, TypeScript and Vite, public OSM geocoders and in-browser embeddings. Each item below can change that without affecting the overall structure.
 
-- [ ] Share a few rows of a real list CSV to confirm the format before phase 1
+- [x] Share a few rows of a real list CSV to confirm the format before phase 1
 - [ ] Framework: React (assumed) or Svelte for a smaller bundle
 - [ ] Geocoder: public Photon and Nominatim, or a hosted OSM geocoder's free tier
 - [ ] Embeddings: in the browser (assumed, private) or through OpenRouter (simpler, better quality)
