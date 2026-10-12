@@ -1,7 +1,15 @@
 import { cancelPipeline } from '../state/actions'
 import { useApp } from '../state/store'
 
-const STAGE_LABEL = { resolve: 'Locating places', area: 'Finding neighborhoods', classify: 'Categorizing', match: 'Matching to OpenStreetMap', embed: 'Indexing', idle: 'Finishing' } as const
+const STAGE_LABEL = {
+  resolve: 'Locating places',
+  area: 'Finding neighborhoods',
+  classify: 'Categorizing',
+  ai: 'Tagging with AI',
+  match: 'Matching to OpenStreetMap',
+  embed: 'Indexing',
+  idle: 'Finishing',
+} as const
 
 export function PipelineBanner() {
   const p = useApp((s) => s.pipeline)

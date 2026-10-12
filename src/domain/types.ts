@@ -22,7 +22,7 @@ export type CoordSource = 'takeout' | 'url' | 'fid' | 'google' | 'geocoder' | 'm
 
 export type BusinessStatus = 'OPERATIONAL' | 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY'
 
-export type StageName = 'resolve' | 'match' | 'classify' | 'area' | 'embed'
+export type StageName = 'resolve' | 'match' | 'classify' | 'ai' | 'area' | 'embed'
 
 export interface Place {
   id: string
@@ -54,6 +54,8 @@ export interface Place {
   osmTags?: Record<string, string>
   /** When the OSM match stage last looked for this place, found or not. */
   matchCheckedAt?: number
+  /** When the AI classifier last tagged this place. */
+  aiClassifiedAt?: number
 
   address?: string
   countryCode?: string

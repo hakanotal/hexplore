@@ -35,10 +35,12 @@ export function PlaceCard({ id }: { id: string }) {
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: categoryColor(p.category) }} aria-hidden />
               {p.category ? categoryLabel(p.category) : 'Uncategorized'}
               {p.subcategory ? ` · ${p.subcategory.replace(/_/g, ' ')}` : ''}
+              {p.priceLevel ? ` · ${'$'.repeat(p.priceLevel)}` : ''}
             </span>
             {areaLine(v) && <span>· {areaLine(v)}</span>}
             {dist && <span>· {dist}</span>}
           </p>
+          {p.summary && <p className="mt-1.5 text-[14px] text-slate-600 dark:text-slate-400">{p.summary}</p>}
           {p.businessStatus === 'CLOSED_PERMANENTLY' && <p className="mt-1 text-[13px] font-medium text-red-700 dark:text-red-400">Permanently closed</p>}
           {p.businessStatus === 'CLOSED_TEMPORARILY' && <p className="mt-1 text-[13px] font-medium text-amber-700 dark:text-amber-400">Temporarily closed</p>}
         </div>

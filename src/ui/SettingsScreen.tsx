@@ -27,6 +27,15 @@ export function SettingsScreen() {
     setSettings((s) => (s ? { ...s, [key]: value } : s))
   }
 
+  // A complete AI or Google setup makes new work possible; start it once typing settles.
+  const aiReady = !!settings?.openRouterKey && !!settings.classifyModel
+  const googleKey = settings?.googlePlacesKey ?? ''
+  useEffect(() => {
+    if (!aiReady && !googleKey) return
+    const t = setTimeout(() => void startPipeline(), 1500)
+    return () => clearTimeout(t)
+  }, [aiReady, googleKey, settings?.classifyModel])
+
   if (!settings) return <Page title="Settings">{null}</Page>
 
   return (
@@ -81,8 +90,24 @@ export function SettingsScreen() {
             className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2"
           />
         </label>
+        <label className="mt-3 block text-[14px] text-slate-700 dark:text-slate-300">
+          Model
+          <input
+            autoComplete="off"
+            spellCheck={false}
+            value={settings.classifyModel}
+            onChange={(e) => void update('classifyModel', e.target.value.trim())}
+            placeholder="an OpenRouter model ID"
+            className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 font-mono text-[13px]"
+          />
+        </label>
         <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-          Stored only on this device and never included in backups. Used for disambiguation, classification and the assistant once those land. Set a monthly credit limit on the key.
+          Stored only on this device and never included in backups. With a key and a model (pick a small, fast one with structured output from{' '}
+          <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-400 underline">
+            openrouter.ai/models
+          </a>
+          ), Hexplore picks between same-named places and tags, prices and summarizes each place once; results are cached, so it runs once per place. Set a
+          monthly credit limit on the key.
         </p>
         <label className="mt-3 flex items-center gap-2 text-[14px] text-slate-700 dark:text-slate-300">
           <input type="checkbox" checked={settings.excludeNotesFromAI} onChange={(e) => void update('excludeNotesFromAI', e.target.checked)} />

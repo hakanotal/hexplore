@@ -14,8 +14,8 @@ export function startPipeline(): Promise<void> {
   pipelineRunning ??= (async () => {
     try {
       const worker = dataWorker()
-      if (!(await worker.pendingJobs())) return
       const geocoder = await activeGeocoder()
+      if (!(await worker.pendingJobs(geocoder))) return
       let lastReload = Date.now()
       let lastStage = ''
       let located = false

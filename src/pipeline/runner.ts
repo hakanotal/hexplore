@@ -6,6 +6,7 @@ import type { PlaceDetailsService } from '../services/googlePlaces'
 import type { PoiFinder } from '../services/overpass'
 import { assignArea, classifyPlace } from './enrich'
 import { bestPoi, MATCH_RADIUS_M, matchPatch } from './match'
+import type { Classifier, ClassifyInput } from './ai'
 import { computeListClusters, resolvePlace, type Disambiguator, type ListGeo, type ResolveContext } from './resolve'
 
 // Resumable job queue over IndexedDB. Each stage records its own status per
@@ -22,6 +23,8 @@ export interface PipelineServices {
   /** OSM features near located places (Overpass); without it the match stage is skipped. */
   pois?: PoiFinder
   disambiguate?: Disambiguator
+  /** AI classification (OpenRouter); without it places keep their rule-based category only. */
+  classifier?: Classifier
 }
 
 export interface PipelineProgress {
@@ -66,13 +69,14 @@ async function readyJobs(db: HexploreDB, stage: StageName, now: number): Promise
  * when a stage is added: places located before the match stage existed get
  * matched once.
  */
-export async function healQueue(db: HexploreDB, now: number, opts: { match: boolean } = { match: false }): Promise<void> {
+export async function healQueue(db: HexploreDB, now: number, opts: { match?: boolean; ai?: boolean } = {}): Promise<void> {
   const [places, jobs] = await Promise.all([db.places.toArray(), db.jobs.toArray()])
   const has = new Set(jobs.map((j) => j.id))
   const area: string[] = []
   const classify: string[] = []
   const resolve: string[] = []
   const match: string[] = []
+  const ai: string[] = []
   for (const p of places) {
     if (p.resolveStatus === 'pending') {
       if (!has.has(`resolve:${p.id}`)) resolve.push(p.id)
@@ -83,6 +87,8 @@ export async function healQueue(db: HexploreDB, now: number, opts: { match: bool
     const needsMatch = opts.match && p.matchCheckedAt === undefined
     if (needsMatch && !has.has(`match:${p.id}`)) match.push(p.id)
     if (!needsMatch && !p.city && !has.has(`area:${p.id}`)) area.push(p.id)
+    // Places categorized before a key was set get their AI tags once.
+    if (opts.ai && p.aiClassifiedAt === undefined && !has.has(`ai:${p.id}`)) ai.push(p.id)
   }
   for (const p of places) if ((p.osmTags || p.googleTypes?.length) && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
   await db.jobs.bulkPut([
@@ -90,6 +96,7 @@ export async function healQueue(db: HexploreDB, now: number, opts: { match: bool
     ...enqueueJobs('match', match, now),
     ...enqueueJobs('area', area, now),
     ...enqueueJobs('classify', classify, now),
+    ...enqueueJobs('ai', ai, now),
   ])
 }
 
@@ -113,7 +120,7 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
   const report = () => opts.onProgress?.({ ...progress })
   const signal = opts.signal
 
-  await healQueue(db, now(), { match: !!services.pois })
+  await healQueue(db, now(), { match: !!services.pois, ai: !!services.classifier })
 
   // ---- Stage 1: resolve ----------------------------------------------------
   const resolveJobs = await readyJobs(db, 'resolve', now())
@@ -274,9 +281,10 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
           await db.jobs.update(job.id, {
             status: 'done',
             attempts: job.attempts + 1,
-            error: needsModel ? 'No rule matched; waiting for the LLM classifier' : undefined,
+            error: needsModel && !services.classifier ? 'No rule matched; set an OpenRouter key and model to classify the rest' : undefined,
             updatedAt: now(),
           })
+          if (services.classifier && place.aiClassifiedAt === undefined) await db.jobs.bulkPut(enqueueJobs('ai', [place.id], now()))
         } else {
           await db.jobs.update(job.id, { status: 'done', updatedAt: now() })
         }
@@ -284,6 +292,76 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
       }
     })
     report()
+  }
+
+  // ---- Stage 3b: AI (category for what rules left, tags, price, summary) ----
+  const aiJobs = await readyJobs(db, 'ai', now())
+  if (aiJobs.length) {
+    progress.stage = 'ai'
+    progress.done = 0
+    progress.total = aiJobs.length
+    report()
+    if (!services.classifier) {
+      for (const job of aiJobs) await db.jobs.update(job.id, { status: 'done', updatedAt: now() })
+    } else {
+      const [memberships, lists, userData] = await Promise.all([db.memberships.toArray(), db.lists.toArray(), db.userData.toArray()])
+      const listName = new Map(lists.map((l) => [l.id, l.name]))
+      const byPlace = new Map<string, Membership[]>()
+      for (const m of memberships) if (m.removedAt === undefined) byPlace.set(m.placeId, [...(byPlace.get(m.placeId) ?? []), m])
+      const userBy = new Map(userData.map((u) => [u.placeId, u]))
+      const places = await db.places.bulkGet(aiJobs.map((j) => j.placeId))
+      const items = aiJobs.map((job, i) => ({ job, place: places[i] }))
+      // 25 places per request keeps answers short enough to come back whole.
+      for (const batch of chunks(items, 25)) {
+        signal?.throwIfAborted()
+        const live = batch.filter((b): b is { job: Job; place: Place } => !!b.place)
+        const inputs: ClassifyInput[] = live.map(({ place }) => {
+          const ms = byPlace.get(place.id) ?? []
+          const user = userBy.get(place.id)
+          return {
+            id: place.id,
+            title: place.title,
+            lists: ms.map((m) => listName.get(m.listId) ?? '').filter(Boolean),
+            notes: [...ms.flatMap((m) => [m.note, m.comment]), user?.userNote].filter((n): n is string => !!n),
+            tags: [...ms.map((m) => m.googleTags), ...(user?.userTags ?? [])].filter((t): t is string => !!t),
+            googleTypes: place.googleTypes,
+            osmTags: place.osmTags,
+            address: place.address ?? place.googleAddress,
+          }
+        })
+        try {
+          const results = inputs.length ? await services.classifier.classify(inputs, signal) : new Map()
+          await db.transaction('rw', db.places, db.jobs, async () => {
+            for (const { job, place } of batch) {
+              const r = place && results.get(place.id)
+              if (place && !r) {
+                await failJob(db, job, new Error('The model skipped this place'), now())
+                progress.errors++
+                continue
+              }
+              if (place && r) {
+                await db.places.update(place.id, {
+                  aiTags: r.aiTags,
+                  priceLevel: r.priceLevel,
+                  summary: r.summary,
+                  aiClassifiedAt: now(),
+                  // Google types and OSM tags decide first; the model fills in the rest.
+                  ...(place.category ? {} : { category: r.category, subcategory: r.subcategory }),
+                  updatedAt: now(),
+                })
+              }
+              await db.jobs.update(job.id, { status: 'done', attempts: job.attempts + 1, error: undefined, updatedAt: now() })
+            }
+          })
+        } catch (err) {
+          if (signal?.aborted) throw err
+          for (const { job } of batch) await failJob(db, job, err, now())
+          progress.errors += batch.length
+        }
+        progress.done += batch.length
+        report()
+      }
+    }
   }
 
   progress.stage = 'idle'

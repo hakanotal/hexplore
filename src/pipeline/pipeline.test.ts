@@ -11,6 +11,7 @@ import { confidence, FID_CONFIDENCE, resolvePlace, scoreCandidates } from './res
 import type { GeoCandidate, Geocoder } from '../services/geocoder'
 import type { Place } from '../domain/types'
 import type { GooglePlace, PlaceDetailsService } from '../services/googlePlaces'
+import type { Classifier } from './ai'
 
 let db: HexploreDB
 beforeEach(() => {
@@ -207,6 +208,30 @@ describe('runPipeline with the fixture geocoder', () => {
     await runPipeline(db, { geocoder: fixture, reverse: fixture, pois: new FixtureOverpass(world) })
     const located = (await db.places.toArray()).filter((p) => p.lat !== undefined)
     expect(located.every((p) => p.matchCheckedAt !== undefined)).toBe(true)
+  })
+
+  it('tags every located place with AI once, and lets it categorize only what rules left', async () => {
+    await importTakeout([{ path: 't.zip', data: buildSampleTakeoutZip({ count: 60 }) }])
+    const world = generateWorld(100)
+    const fixture = new FixtureGeocoder(world)
+    const seen: string[] = []
+    const classifier: Classifier = {
+      async classify(items) {
+        seen.push(...items.map((i) => i.id))
+        return new Map(items.map((i) => [i.id, { category: 'culture', subcategory: 'museum', aiTags: ['quiet'], priceLevel: 2, summary: `About ${i.title}` }]))
+      },
+    }
+    await runPipeline(db, { geocoder: fixture, reverse: fixture, classifier })
+    const places = await db.places.toArray()
+    const tagged = places.filter((p) => p.aiClassifiedAt !== undefined)
+    expect(tagged.length).toBeGreaterThan(40)
+    expect(tagged.every((p) => p.aiTags.includes('quiet') && p.summary?.startsWith('About'))).toBe(true)
+    // Rules decided most categories; the model did not overwrite them.
+    expect(tagged.filter((p) => p.category && p.category !== 'culture').length).toBeGreaterThan(20)
+
+    const before = seen.length
+    await runPipeline(db, { geocoder: fixture, reverse: fixture, classifier })
+    expect(seen.length).toBe(before)
   })
 
   it('backs off and retries a failing geocoder without losing work', async () => {

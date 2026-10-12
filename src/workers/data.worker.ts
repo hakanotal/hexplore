@@ -6,8 +6,10 @@ import { buildDemoData } from '../dev/demoData'
 import { FixtureGeocoder } from '../dev/fixtureGeocoder'
 import { FixtureOverpass } from '../dev/fixtureOverpass'
 import { OverpassClient } from '../services/overpass'
+import { OpenRouterClient } from '../services/openrouter'
+import { aiClassifier, aiDisambiguator } from '../pipeline/ai'
 import { generateWorld } from '../dev/world'
-import { runPipeline, type PipelineProgress, type PipelineServices } from '../pipeline/runner'
+import { healQueue, runPipeline, type PipelineProgress, type PipelineServices } from '../pipeline/runner'
 import { computeStats, type Stats } from '../stats/compute'
 import type { GeocoderId } from '../services/geocoder'
 import { NominatimGeocoder } from '../services/nominatim'
@@ -30,12 +32,17 @@ async function fixtureServices(): Promise<PipelineServices> {
 async function servicesFor(id: GeocoderId): Promise<PipelineServices> {
   if (id === 'fixture') return fixtureServices()
   const nominatim = new NominatimGeocoder()
-  const key = googlePlacesKey(await loadSettings())
+  const settings = await loadSettings()
+  const key = googlePlacesKey(settings)
+  // AI steps need both a key and a model chosen in Settings.
+  const ai = settings.openRouterKey && settings.classifyModel ? { client: new OpenRouterClient(settings.openRouterKey), opts: { model: settings.classifyModel, excludeNotes: settings.excludeNotesFromAI } } : null
   return {
     geocoder: id === 'nominatim' ? nominatim : new PhotonGeocoder(),
     reverse: nominatim,
     places: key ? new GooglePlaces(key, { take: () => takeGoogleCall() }) : undefined,
     pois: new OverpassClient(),
+    disambiguate: ai ? aiDisambiguator(ai.client, ai.opts) : undefined,
+    classifier: ai ? aiClassifier(ai.client, ai.opts) : undefined,
   }
 }
 
@@ -61,7 +68,10 @@ const api = {
     })
   },
 
-  async pendingJobs(): Promise<number> {
+  /** Heals the queue first, so work that a new key or a new stage makes possible counts as pending. */
+  async pendingJobs(geocoder: GeocoderId): Promise<number> {
+    const services = await servicesFor(geocoder)
+    await healQueue(getDb(), Date.now(), { match: !!services.pois, ai: !!services.classifier })
     return getDb().jobs.filter((j) => j.status === 'queued').count()
   },
 
