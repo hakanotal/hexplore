@@ -100,7 +100,7 @@ export function composeStyle(base: StyleSpecification, input: ComposeInput): Sty
   const style = structuredClone(base)
   const sources: Record<string, SourceSpecification> = { ...style.sources }
   // A quiet base map: drop POI icons so your own points stand out.
-  let layers = style.layers.filter((l) => !/poi/i.test(l.id))
+  let layers = style.layers.filter((l) => !/poi/i.test(l.id)).map(fixEnglishNames)
   const satellite = network && basemap === 'satellite'
   if (satellite) {
     sources['hx-imagery'] = IMAGERY
@@ -155,6 +155,27 @@ export function composeStyle(base: StyleSpecification, input: ComposeInput): Sty
   if (details.globe) out.sky = { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }
   else delete out.sky
   return out
+}
+
+// OpenFreeMap's tiles carry name_en = "T" for Türkiye (an upstream data bug),
+// and the styles label countries with name_en first. A name of one character
+// is never right, so fall back to the Latin or local name.
+const ENGLISH_NAME: ExpressionSpecification = [
+  'case',
+  ['>', ['length', ['to-string', ['coalesce', ['get', 'name_en'], '']]], 1],
+  ['get', 'name_en'],
+  ['coalesce', ['get', 'name:latin'], ['get', 'name']],
+]
+
+function replaceEnglishName(e: unknown): unknown {
+  if (!Array.isArray(e)) return e
+  if (e.length === 2 && e[0] === 'get' && e[1] === 'name_en') return ENGLISH_NAME
+  return e.map(replaceEnglishName)
+}
+
+function fixEnglishNames(l: LayerSpecification): LayerSpecification {
+  if (l.type !== 'symbol' || !Array.isArray(l.layout?.['text-field'])) return l
+  return { ...l, layout: { ...l.layout, 'text-field': replaceEnglishName(l.layout['text-field']) as ExpressionSpecification } }
 }
 
 function firstIndex(layers: LayerSpecification[], test: (l: LayerSpecification) => boolean): number {

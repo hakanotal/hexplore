@@ -1,4 +1,4 @@
-import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
+import { createExpression, validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DETAILS, restorePrefs, type BasemapId, type MapDetails } from '../state/mapPrefs'
@@ -82,6 +82,24 @@ describe('composeStyle', () => {
   it('shows the want-to-go halo only with the near-me ring', () => {
     expect(layer(compose(), 'near-want').layout).toMatchObject({ visibility: 'none' })
     expect(layer(compose({ near: true }), 'near-want').layout).toMatchObject({ visibility: 'visible' })
+  })
+
+  it('labels Türkiye by name when the tiles say name_en is "T"', () => {
+    // Positron's country label, as OpenFreeMap ships it.
+    const country: LayerSpecification = {
+      id: 'label_country',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'place',
+      layout: { 'text-field': ['case', ['has', 'name:nonlatin'], ['concat', ['get', 'name:latin'], '\n', ['get', 'name:nonlatin']], ['coalesce', ['get', 'name_en'], ['get', 'name']]] },
+    }
+    const field = layer(compose({}, { ...BASE, layers: [...BASE.layers, country] }), 'label_country').layout?.['text-field' as never]
+    const expr = createExpression(field, 'layers[0].layout.text-field')
+    if (expr.result !== 'success') throw new Error('invalid expression')
+    const label = (properties: Record<string, string>) => expr.value.evaluate({ zoom: 3 }, { type: 'Point', properties, geometry: [] } as never)
+    expect(label({ name_en: 'T', name: 'Türkiye', 'name:latin': 'Türkiye' })).toBe('Türkiye')
+    expect(label({ name_en: 'Germany', name: 'Deutschland' })).toBe('Germany')
+    expect(label({ name: 'Kenya' })).toBe('Kenya')
   })
 
   it('never mutates the cached base style', () => {
