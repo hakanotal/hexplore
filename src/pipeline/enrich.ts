@@ -1,3 +1,4 @@
+import { safeHttpUrl } from '../domain/safeUrl'
 import type { Place } from '../domain/types'
 import { classifyByGoogleTypes, classifyByOsmTags } from '../domain/taxonomy'
 import type { ReverseGeocoder } from '../services/geocoder'
@@ -37,7 +38,7 @@ export function classifyPlace(place: Place): ClassifyResult {
   const tags = place.osmTags
   const patch: Partial<Place> = {}
   if (tags?.opening_hours && !place.openingHours) patch.openingHours = tags.opening_hours
-  if (tags?.website && !place.website) patch.website = tags.website
+  if (tags?.website && !place.website) patch.website = safeHttpUrl(tags.website)
   // Google's types come from an exact ID match, so they win over OSM tags matched by name.
   const rule = classifyByGoogleTypes(place.googlePrimaryType, place.googleTypes) ?? classifyByOsmTags(tags)
   if (rule) {

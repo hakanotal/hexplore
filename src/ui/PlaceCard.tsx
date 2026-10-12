@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { isOpenAt } from '../domain/openingHours'
+import { safeHttpUrl } from '../domain/safeUrl'
 import { categoryColor, categoryLabel } from '../domain/taxonomy'
 import { chooseCandidate, confirmLocation, logVisit, removeLastVisit, setManualLocation, setUserTags } from '../db/placeRepo'
 import { refresh, startPipeline } from '../state/actions'
@@ -17,6 +18,7 @@ export function PlaceCard({ id }: { id: string }) {
   if (!v) return null
   const p = v.place
   const dist = distanceLabel(v, userLocation)
+  const website = safeHttpUrl(p.website)
 
   const afterEdit = async (opts: { reenrich?: boolean } = {}) => {
     await refresh()
@@ -171,10 +173,10 @@ export function PlaceCard({ id }: { id: string }) {
           <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Details</h3>
           {(p.address || p.googleAddress) && <p>{p.address ?? p.googleAddress}</p>}
           {p.openingHours && <Hours spec={p.openingHours} />}
-          {p.website && (
+          {website && (
             <p>
-              <a className="text-blue-700 dark:text-blue-400 underline" href={p.website} target="_blank" rel="noreferrer">
-                {p.website.replace(/^https?:\/\//, '')}
+              <a className="text-blue-700 dark:text-blue-400 underline" href={website} target="_blank" rel="noreferrer">
+                {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </a>
             </p>
           )}

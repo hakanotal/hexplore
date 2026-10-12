@@ -1,3 +1,4 @@
+import { safeHttpUrl } from '../domain/safeUrl'
 import type { Place } from '../domain/types'
 import type { OsmPoi } from '../services/overpass'
 import { haversineKm, nameSimilarity } from './similarity'
@@ -43,6 +44,7 @@ export function matchPatch(poi: OsmPoi): Partial<Place> {
     osmId: poi.osmId,
     osmTags: t,
     openingHours: t.opening_hours,
-    website: t.website ?? t['contact:website'],
+    // OSM tags are user-edited data; only web links survive.
+    website: safeHttpUrl(t.website ?? t['contact:website']),
   }
 }

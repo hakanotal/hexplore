@@ -19,6 +19,8 @@ describe('bestPoi', () => {
   })
 
   it('carries hours and website over', () => {
-    expect(matchPatch(tower)).toMatchObject({ osmId: 'node/1', openingHours: 'Mo-Su 08:30-23:00', website: 'https://galatakulesi.example' })
+    expect(matchPatch(tower)).toMatchObject({ osmId: 'node/1', openingHours: 'Mo-Su 08:30-23:00', website: 'https://galatakulesi.example/' })
+    // OSM is user-edited: a script link never becomes a website.
+    expect(matchPatch(poi('9', 41, 29, { name: 'x', website: 'javascript:alert(1)' })).website).toBeUndefined()
   })
 })

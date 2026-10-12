@@ -1,3 +1,4 @@
+import { safeHttpUrl } from '../domain/safeUrl'
 import type { ListRole } from '../domain/types'
 import type { PlaceView } from '../query/placeView'
 import { haversineKm } from '../pipeline/similarity'
@@ -36,7 +37,9 @@ export function formatDate(t: number): string {
 }
 
 export function googleMapsUrl(v: PlaceView): string {
-  if (v.place.googleUrl) return v.place.googleUrl
+  // The URL comes from an imported CSV; anything but a web link falls back to a search.
+  const imported = safeHttpUrl(v.place.googleUrl)
+  if (imported) return imported
   if (v.lat !== undefined) return `https://www.google.com/maps/search/?api=1&query=${v.lat},${v.lng}`
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.place.title)}`
 }
