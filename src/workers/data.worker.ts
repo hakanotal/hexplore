@@ -4,6 +4,8 @@ import { importTakeout, type ImportOutcome } from '../db/importRepo'
 import { buildSampleTakeout } from '../dev/sampleTakeout'
 import { buildDemoData } from '../dev/demoData'
 import { FixtureGeocoder } from '../dev/fixtureGeocoder'
+import { FixtureOverpass } from '../dev/fixtureOverpass'
+import { OverpassClient } from '../services/overpass'
 import { generateWorld } from '../dev/world'
 import { runPipeline, type PipelineProgress, type PipelineServices } from '../pipeline/runner'
 import { computeStats, type Stats } from '../stats/compute'
@@ -20,8 +22,9 @@ let controller: AbortController | null = null
 
 async function fixtureServices(): Promise<PipelineServices> {
   const size = ((await getDb().settings.get('sampleWorldSize'))?.value as number | undefined) ?? 500
-  const fixture = new FixtureGeocoder(generateWorld(size))
-  return { geocoder: fixture, reverse: fixture }
+  const world = generateWorld(size)
+  const fixture = new FixtureGeocoder(world)
+  return { geocoder: fixture, reverse: fixture, pois: new FixtureOverpass(world) }
 }
 
 async function servicesFor(id: GeocoderId): Promise<PipelineServices> {
@@ -32,6 +35,7 @@ async function servicesFor(id: GeocoderId): Promise<PipelineServices> {
     geocoder: id === 'nominatim' ? nominatim : new PhotonGeocoder(),
     reverse: nominatim,
     places: key ? new GooglePlaces(key, { take: () => takeGoogleCall() }) : undefined,
+    pois: new OverpassClient(),
   }
 }
 

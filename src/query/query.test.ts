@@ -124,3 +124,32 @@ describe('performance budget at 10,000 places', () => {
     expect(spatialMs).toBeLessThan(50)
   })
 })
+
+describe('open now', () => {
+  const views = buildViews({
+    places: [
+      place('day', { openingHours: 'Mo-Fr 09:00-17:00' }),
+      place('night', { openingHours: 'Mo-Su 18:00-02:00' }),
+      place('odd', { openingHours: 'sunrise-sunset' }),
+      place('none'),
+    ],
+    memberships: ['day', 'night', 'odd', 'none'].map((placeId) => ({ placeId, listId: 'w', addedAt: NOW })),
+    lists,
+    userData: [],
+  })
+
+  it('keeps only places known to be open at that moment', () => {
+    const f = { ...emptyFilters(), openNow: true }
+    const mondayNoon = new Date(2026, 9, 12, 12, 0)
+    const tuesdayOneAm = new Date(2026, 9, 13, 1, 0)
+    expect(applyFilters(views, f, null, mondayNoon).items.map((v) => v.id)).toEqual(['day'])
+    expect(applyFilters(views, f, null, tuesdayOneAm).items.map((v) => v.id)).toEqual(['night'])
+  })
+
+  it('round-trips through the URL and counts as a filter', () => {
+    const f = { ...emptyFilters(), openNow: true }
+    expect(encodeFilters(f)).toBe('open=1')
+    expect(decodeFilters('open=1').openNow).toBe(true)
+    expect(activeFilterCount(f)).toBe(1)
+  })
+})

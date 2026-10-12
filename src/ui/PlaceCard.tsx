@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isOpenAt } from '../domain/openingHours'
 import { categoryColor, categoryLabel } from '../domain/taxonomy'
 import { chooseCandidate, confirmLocation, logVisit, removeLastVisit, setManualLocation, setUserTags } from '../db/placeRepo'
 import { refresh, startPipeline } from '../state/actions'
@@ -169,7 +170,7 @@ export function PlaceCard({ id }: { id: string }) {
         <section className="mt-4 space-y-1 text-[14px] text-slate-700 dark:text-slate-300">
           <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Details</h3>
           {(p.address || p.googleAddress) && <p>{p.address ?? p.googleAddress}</p>}
-          {p.openingHours && <p>Hours: {p.openingHours}</p>}
+          {p.openingHours && <Hours spec={p.openingHours} />}
           {p.website && (
             <p>
               <a className="text-blue-700 dark:text-blue-400 underline" href={p.website} target="_blank" rel="noreferrer">
@@ -231,5 +232,17 @@ function Action({ href, children }: { href: string; children: React.ReactNode })
     <a href={href} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-2.5 text-center text-[14px] font-medium text-slate-800 dark:text-slate-200">
       {children}
     </a>
+  )
+}
+
+function Hours({ spec }: { spec: string }) {
+  const open = isOpenAt(spec, new Date())
+  return (
+    <p>
+      {open !== undefined && (
+        <span className={`mr-1.5 font-medium ${open ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{open ? 'Open now' : 'Closed now'}</span>
+      )}
+      <span className="text-slate-600 dark:text-slate-400">{spec}</span>
+    </p>
   )
 }

@@ -3,8 +3,6 @@ import { MapView } from './ui/MapView'
 import { SearchBar } from './ui/SearchBar'
 import { BottomSheet } from './ui/BottomSheet'
 import { ResultList } from './ui/ResultList'
-import { PlaceCard } from './ui/PlaceCard'
-import { FilterPanel } from './ui/FilterPanel'
 import { SheetHeader } from './ui/SheetHeader'
 import { MapButtons } from './ui/MapButtons'
 import { PipelineBanner } from './ui/PipelineBanner'
@@ -16,6 +14,9 @@ import { startPipeline } from './state/actions'
 const ImportScreen = lazy(() => import('./ui/ImportScreen').then((m) => ({ default: m.ImportScreen })))
 const SettingsScreen = lazy(() => import('./ui/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
 const StatsScreen = lazy(() => import('./ui/StatsScreen').then((m) => ({ default: m.StatsScreen })))
+// Opened on a tap, and precached by the service worker, so they appear at once.
+const PlaceCard = lazy(() => import('./ui/PlaceCard').then((m) => ({ default: m.PlaceCard })))
+const FilterPanel = lazy(() => import('./ui/FilterPanel').then((m) => ({ default: m.FilterPanel })))
 
 export default function App() {
   const route = useRoute()
@@ -48,9 +49,21 @@ export default function App() {
         </button>
       )}
       {!empty && (
-        <BottomSheet header={<SheetHeader />}>{selectedId ? <PlaceCard id={selectedId} /> : <ResultList />}</BottomSheet>
+        <BottomSheet header={<SheetHeader />}>
+          {selectedId ? (
+            <Suspense fallback={null}>
+              <PlaceCard id={selectedId} />
+            </Suspense>
+          ) : (
+            <ResultList />
+          )}
+        </BottomSheet>
       )}
-      {filtersOpen && <FilterPanel onClose={() => setFiltersOpen(false)} />}
+      {filtersOpen && (
+        <Suspense fallback={null}>
+          <FilterPanel onClose={() => setFiltersOpen(false)} />
+        </Suspense>
+      )}
       <Suspense fallback={null}>
         {route === 'import' && <ImportScreen />}
         {route === 'settings' && <SettingsScreen />}

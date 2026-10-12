@@ -1,5 +1,6 @@
 import type { PlaceView } from './placeView'
 import { haversineKm } from '../pipeline/similarity'
+import { isOpenAt } from '../domain/openingHours'
 
 // Options within a group combine with OR; groups combine with AND. Facet counts
 // for a group are computed with every other group applied, so each option shows
@@ -18,6 +19,8 @@ export interface Filters {
   tags: string[]
   hasNotes: boolean
   needsReview: boolean
+  /** Open at this moment by OSM opening hours, in the device's local time. */
+  openNow: boolean
   /** ISO dates, inclusive */
   seenFrom?: string
   seenTo?: string
@@ -31,7 +34,7 @@ export type Facet = (typeof FACETS)[number]
 export type FacetCounts = Record<Facet, Map<string, number>>
 
 export function emptyFilters(): Filters {
-  return { q: '', categories: [], lists: [], status: [], countries: [], cities: [], neighborhoods: [], tags: [], hasNotes: false, needsReview: false }
+  return { q: '', categories: [], lists: [], status: [], countries: [], cities: [], neighborhoods: [], tags: [], hasNotes: false, needsReview: false, openNow: false }
 }
 
 export function statusOf(v: PlaceView): StatusValue {
@@ -67,11 +70,13 @@ function dayStart(iso: string): number {
   return Date.parse(`${iso}T00:00:00`)
 }
 
-/** Non-facet constraints: search, notes, review, dates, area. */
-function matchesFixed(v: PlaceView, f: Filters, hits: Map<string, number> | null): boolean {
+/** Non-facet constraints: search, notes, review, hours, dates, area. */
+function matchesFixed(v: PlaceView, f: Filters, hits: Map<string, number> | null, now: Date): boolean {
   if (hits && !hits.has(v.id)) return false
   if (f.hasNotes && !v.notes.length) return false
   if (f.needsReview && !v.needsReview) return false
+  // Unknown hours do not count as open.
+  if (f.openNow && isOpenAt(v.place.openingHours, now) !== true) return false
   if (f.seenFrom && v.place.firstSeenAt < dayStart(f.seenFrom)) return false
   if (f.seenTo && v.place.firstSeenAt >= dayStart(f.seenTo) + 86_400_000) return false
   if (f.bbox) {
@@ -92,13 +97,13 @@ export interface FilterResult {
   counts: FacetCounts
 }
 
-export function applyFilters(views: PlaceView[], f: Filters, hits: Map<string, number> | null = null): FilterResult {
+export function applyFilters(views: PlaceView[], f: Filters, hits: Map<string, number> | null = null, now = new Date()): FilterResult {
   const counts = Object.fromEntries(FACETS.map((k) => [k, new Map<string, number>()])) as FacetCounts
   const items: PlaceView[] = []
   const selected = FACETS.map((k) => f[k] as string[])
 
   for (const v of views) {
-    if (!matchesFixed(v, f, hits)) continue
+    if (!matchesFixed(v, f, hits, now)) continue
     let failed: number = -1
     let failures = 0
     for (let i = 0; i < FACETS.length; i++) {
@@ -128,6 +133,7 @@ export function activeFilterCount(f: Filters): number {
     (f.q ? 1 : 0) +
     (f.hasNotes ? 1 : 0) +
     (f.needsReview ? 1 : 0) +
+    (f.openNow ? 1 : 0) +
     (f.seenFrom || f.seenTo ? 1 : 0) +
     (f.bbox ? 1 : 0) +
     (f.near ? 1 : 0)
@@ -152,6 +158,7 @@ export function encodeFilters(f: Filters): string {
   for (const k of FACETS) for (const v of f[k] as string[]) p.append(PARAM[k], v)
   if (f.hasNotes) p.set('notes', '1')
   if (f.needsReview) p.set('review', '1')
+  if (f.openNow) p.set('open', '1')
   if (f.seenFrom) p.set('from', f.seenFrom)
   if (f.seenTo) p.set('to', f.seenTo)
   if (f.bbox) p.set('bbox', f.bbox.map((x) => x.toFixed(4)).join(','))
@@ -167,6 +174,7 @@ export function decodeFilters(query: string): Filters {
   f.status = f.status.filter((s): s is StatusValue => ['visited', 'wantToGo', 'saved'].includes(s))
   f.hasNotes = p.get('notes') === '1'
   f.needsReview = p.get('review') === '1'
+  f.openNow = p.get('open') === '1'
   f.seenFrom = p.get('from') ?? undefined
   f.seenTo = p.get('to') ?? undefined
   const bbox = p.get('bbox')?.split(',').map(Number)

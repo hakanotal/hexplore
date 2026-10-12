@@ -64,6 +64,7 @@ export function FilterPanel({ onClose }: { onClose: () => void }) {
         <Group title="More">
           <Chip active={filters.hasNotes} onClick={() => setFilters({ hasNotes: !filters.hasNotes })}>Has notes</Chip>
           <Chip active={filters.needsReview} onClick={() => setFilters({ needsReview: !filters.needsReview })}>Location needs a check</Chip>
+          <Chip active={filters.openNow} onClick={() => setFilters({ openNow: !filters.openNow })}>Open now</Chip>
         </Group>
         <Group title="First seen">
           <label className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-400">

@@ -52,6 +52,8 @@ export interface Place {
 
   osmId?: string
   osmTags?: Record<string, string>
+  /** When the OSM match stage last looked for this place, found or not. */
+  matchCheckedAt?: number
 
   address?: string
   countryCode?: string

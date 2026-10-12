@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSampleTakeoutZip } from '../dev/sampleTakeout'
 import { FixtureGeocoder } from '../dev/fixtureGeocoder'
+import { FixtureOverpass } from '../dev/fixtureOverpass'
 import { generateWorld } from '../dev/world'
 import { importTakeout } from '../db/importRepo'
 import type { HexploreDB } from '../db/db'
@@ -172,6 +173,40 @@ describe('runPipeline with the fixture geocoder', () => {
     expect(typed.every((p) => p.category === byFid.get(p.googleFid!)!.category)).toBe(true)
     // Only the row without any URL needed a name search.
     expect([...searched]).toEqual(['That ramen place Elif mentioned'])
+  })
+
+  it('matches located places to OSM features once, in area batches', async () => {
+    await importTakeout([{ path: 't.zip', data: buildSampleTakeoutZip({ count: 120 }) }])
+    const world = generateWorld(200)
+    const fixture = new FixtureGeocoder(world)
+    const pois = new FixtureOverpass(world)
+    await runPipeline(db, { geocoder: fixture, reverse: fixture, pois })
+
+    const places = await db.places.toArray()
+    const located = places.filter((p) => p.lat !== undefined)
+    expect(located.every((p) => p.matchCheckedAt !== undefined)).toBe(true)
+    const withHours = new Set(world.filter((w) => w.osmTags.opening_hours).map((w) => `g${w.cid}`))
+    const matchedHours = places.filter((p) => withHours.has(p.id) && p.openingHours)
+    expect(matchedHours.length / places.filter((p) => withHours.has(p.id)).length).toBeGreaterThan(0.9)
+    // Batched by area: far fewer queries than places.
+    expect(pois.calls).toBeLessThan(located.length / 5)
+
+    // A second run finds nothing left to match.
+    const before = pois.calls
+    await runPipeline(db, { geocoder: fixture, reverse: fixture, pois })
+    expect(pois.calls).toBe(before)
+  })
+
+  it('backfills the match stage for places located before it existed', async () => {
+    await importTakeout([{ path: 't.zip', data: buildSampleTakeoutZip({ count: 60 }) }])
+    const world = generateWorld(100)
+    const fixture = new FixtureGeocoder(world)
+    await runPipeline(db, { geocoder: fixture, reverse: fixture })
+    expect((await db.places.toArray()).some((p) => p.matchCheckedAt !== undefined)).toBe(false)
+
+    await runPipeline(db, { geocoder: fixture, reverse: fixture, pois: new FixtureOverpass(world) })
+    const located = (await db.places.toArray()).filter((p) => p.lat !== undefined)
+    expect(located.every((p) => p.matchCheckedAt !== undefined)).toBe(true)
   })
 
   it('backs off and retries a failing geocoder without losing work', async () => {

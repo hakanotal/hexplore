@@ -3,7 +3,9 @@ import { enqueueJobs } from '../db/jobs'
 import type { Job, Membership, Place, StageName } from '../domain/types'
 import type { Geocoder, ReverseGeocoder } from '../services/geocoder'
 import type { PlaceDetailsService } from '../services/googlePlaces'
+import type { PoiFinder } from '../services/overpass'
 import { assignArea, classifyPlace } from './enrich'
+import { bestPoi, MATCH_RADIUS_M, matchPatch } from './match'
 import { computeListClusters, resolvePlace, type Disambiguator, type ListGeo, type ResolveContext } from './resolve'
 
 // Resumable job queue over IndexedDB. Each stage records its own status per
@@ -17,6 +19,8 @@ export interface PipelineServices {
   reverse: ReverseGeocoder
   /** Google Place Details, when a key is configured. */
   places?: PlaceDetailsService
+  /** OSM features near located places (Overpass); without it the match stage is skipped. */
+  pois?: PoiFinder
   disambiguate?: Disambiguator
 }
 
@@ -57,20 +61,42 @@ async function readyJobs(db: HexploreDB, stage: StageName, now: number): Promise
   return jobs.filter((j) => j.notBefore <= now)
 }
 
-/** Creates jobs that should exist but don't, e.g. after a backup restore. */
-export async function healQueue(db: HexploreDB, now: number): Promise<void> {
+/**
+ * Creates jobs that should exist but don't, e.g. after a backup restore or
+ * when a stage is added: places located before the match stage existed get
+ * matched once.
+ */
+export async function healQueue(db: HexploreDB, now: number, opts: { match: boolean } = { match: false }): Promise<void> {
   const [places, jobs] = await Promise.all([db.places.toArray(), db.jobs.toArray()])
   const has = new Set(jobs.map((j) => j.id))
   const area: string[] = []
   const classify: string[] = []
   const resolve: string[] = []
+  const match: string[] = []
   for (const p of places) {
-    if (p.resolveStatus === 'pending' && !has.has(`resolve:${p.id}`)) resolve.push(p.id)
-    // Pending places with a feature ID point get their area after resolve.
-    if (p.lat !== undefined && !p.city && p.resolveStatus !== 'pending' && !has.has(`area:${p.id}`)) area.push(p.id)
-    if ((p.osmTags || p.googleTypes?.length) && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
+    if (p.resolveStatus === 'pending') {
+      if (!has.has(`resolve:${p.id}`)) resolve.push(p.id)
+      // Pending places with a feature ID point are matched and get their area after resolve.
+      continue
+    }
+    if (p.lat === undefined) continue
+    const needsMatch = opts.match && p.matchCheckedAt === undefined
+    if (needsMatch && !has.has(`match:${p.id}`)) match.push(p.id)
+    if (!needsMatch && !p.city && !has.has(`area:${p.id}`)) area.push(p.id)
   }
-  await db.jobs.bulkPut([...enqueueJobs('resolve', resolve, now), ...enqueueJobs('area', area, now), ...enqueueJobs('classify', classify, now)])
+  for (const p of places) if ((p.osmTags || p.googleTypes?.length) && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
+  await db.jobs.bulkPut([
+    ...enqueueJobs('resolve', resolve, now),
+    ...enqueueJobs('match', match, now),
+    ...enqueueJobs('area', area, now),
+    ...enqueueJobs('classify', classify, now),
+  ])
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
 }
 
 function buildContext(place: Place, membershipsByPlace: Map<string, Membership[]>, geo: Map<string, ListGeo>): ResolveContext {
@@ -87,7 +113,7 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
   const report = () => opts.onProgress?.({ ...progress })
   const signal = opts.signal
 
-  await healQueue(db, now())
+  await healQueue(db, now(), { match: !!services.pois })
 
   // ---- Stage 1: resolve ----------------------------------------------------
   const resolveJobs = await readyJobs(db, 'resolve', now())
@@ -139,7 +165,7 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
             await db.places.update(place.id, { ...outcome.patch, updatedAt: now() })
             await db.jobs.update(job.id, { status: 'done', attempts: job.attempts + 1, error: undefined, updatedAt: now() })
             if (status === 'resolved' || status === 'flagged') {
-              const next = outcome.patch.city ? 'classify' : 'area'
+              const next = services.pois ? 'match' : outcome.patch.city ? 'classify' : 'area'
               await db.jobs.bulkPut(enqueueJobs(next, [place.id], now()))
             }
           })
@@ -154,6 +180,53 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
         progress.done++
         report()
       }
+    }
+  }
+
+  // ---- Stage 2: match (OSM tags: opening hours, website, cuisine) ---------
+  const matchJobs = await readyJobs(db, 'match', now())
+  if (matchJobs.length) {
+    progress.stage = 'match'
+    progress.done = 0
+    progress.total = matchJobs.length
+    report()
+    const places = await db.places.bulkGet(matchJobs.map((j) => j.placeId))
+    // One Overpass query per city-sized area (~20 km cells), at most 40 places each.
+    // Cost is per around() search, not per area, so bigger cells only mean fewer requests.
+    const cells = new Map<string, { job: Job; place: Place }[]>()
+    const skip: Job[] = []
+    matchJobs.forEach((job, i) => {
+      const place = places[i]
+      if (!place || place.lat === undefined || place.lng === undefined) return skip.push(job)
+      const key = `${Math.floor(place.lat / 0.2)}:${Math.floor(place.lng / 0.2)}`
+      const cell = cells.get(key)
+      if (cell) cell.push({ job, place })
+      else cells.set(key, [{ job, place }])
+    })
+    for (const job of skip) {
+      await db.jobs.update(job.id, { status: 'done', updatedAt: now() })
+      progress.done++
+    }
+    for (const batch of [...cells.values()].flatMap((c) => chunks(c, 40))) {
+      signal?.throwIfAborted()
+      try {
+        // Without a POI service, leftover jobs just move on; the places stay unchecked for a later run.
+        const pois = services.pois ? await services.pois.poisNear(batch.map((b) => ({ lat: b.place.lat!, lng: b.place.lng! })), MATCH_RADIUS_M, signal) : null
+        await db.transaction('rw', db.places, db.jobs, async () => {
+          for (const { job, place } of batch) {
+            const poi = pois && bestPoi(place, pois)
+            if (pois) await db.places.update(place.id, { ...(poi ? matchPatch(poi) : {}), matchCheckedAt: now(), updatedAt: now() })
+            await db.jobs.update(job.id, { status: 'done', attempts: job.attempts + 1, error: undefined, updatedAt: now() })
+            await db.jobs.bulkPut(enqueueJobs(place.city ? 'classify' : 'area', [place.id], now()))
+          }
+        })
+      } catch (err) {
+        if (signal?.aborted) throw err
+        for (const { job } of batch) await failJob(db, job, err, now())
+        progress.errors += batch.length
+      }
+      progress.done += batch.length
+      report()
     }
   }
 
