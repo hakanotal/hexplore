@@ -20,6 +20,16 @@ export const ROLE_LABEL: Record<ListRole, string> = {
   other: 'Other',
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  fid: 'Google place ID',
+  url: 'Google Maps link',
+  takeout: 'Google Takeout',
+}
+
+export function sourceLabel(source: string): string {
+  return SOURCE_LABEL[source] ?? source
+}
+
 export function formatDate(t: number): string {
   return new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }

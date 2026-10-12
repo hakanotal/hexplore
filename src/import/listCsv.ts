@@ -3,7 +3,8 @@ import Papa from 'papaparse'
 export interface CsvRow {
   /** 1-based line of the row in the file, for error messages. */
   rowNumber: number
-  title: string
+  /** Missing for some rows in real exports; the caller picks a fallback. */
+  title?: string
   note?: string
   url?: string
   tags?: string
@@ -91,7 +92,7 @@ export function parseListCsv(text: string): ParsedListCsv {
     }
     rows.push({
       rowNumber,
-      title: title ?? 'Untitled place',
+      title,
       url,
       note: cols.note !== undefined ? clean(r[cols.note]) : undefined,
       tags: cols.tags !== undefined ? clean(r[cols.tags]) : undefined,

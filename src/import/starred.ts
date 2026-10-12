@@ -45,6 +45,15 @@ export function looksLikeReviews(json: { features: unknown[] }): boolean {
   return !!first && ('five_star_rating_published' in first || 'review_text_published' in first)
 }
 
+/**
+ * Saved places carry a Maps URL or a location block. "My labeled places/Labeled
+ * places.json" (Home, Work) is also GeoJSON but has only a name, so it fails this.
+ */
+export function looksLikeSavedPlaces(json: { features: unknown[] }): boolean {
+  const first = obj(obj(json.features[0])?.properties)
+  return !!first && ['google_maps_url', 'Google Maps URL', 'location', 'Location'].some((k) => k in first)
+}
+
 export function parseStarred(json: unknown): ParsedStarred {
   const warnings: string[] = []
   if (!isFeatureCollection(json)) return { places: [], warnings: ['Not a GeoJSON FeatureCollection'] }

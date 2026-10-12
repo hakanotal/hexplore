@@ -8,3 +8,5 @@ test-results
 .DS_Store
 .env
 fixtures/*.zip
+# Real Takeout exports: personal location data, never commit
+data/

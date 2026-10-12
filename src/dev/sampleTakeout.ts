@@ -1,12 +1,20 @@
 import { strToU8, zipSync } from 'fflate'
 import { createRng, generateWorld, type WorldPlace, CITIES } from './world'
 
-// Writes the synthetic world out in the same layout Google Takeout uses, so the
-// real import path can be exercised end to end before real data exists.
+// Writes the synthetic world out in the layout Google Takeout uses, so the real
+// import path runs end to end without real data. Matches the owner's export
+// from October 2026:
 //
-//   Takeout/Saved/<List name>.csv              one per list
-//   Takeout/Maps (your places)/Saved Places.json starred places (GeoJSON)
+//   Takeout/Saved/<List name>.csv                 one per list; no BOM, header,
+//                                                 then an empty ",,,," row
+//   Takeout/Saved/Images.csv, Default list(1).csv collections that are not Maps
+//                                                 lists (empty, or saved films)
+//   Takeout/Maps (your places)/Saved Places.json  starred places (GeoJSON)
+//   Takeout/Maps (your places)/Reviews.json       GeoJSON too, ignored
+//   Takeout/Maps/My labeled places/Labeled places.json  Home/Work, ignored
 //
+// List URLs carry only the feature ID, never coordinates; the ID's first half
+// is an S2 cell near the place (see src/import/s2.ts).
 // `revision` simulates a later export of the same account: a few more places,
 // some want-to-go places moved to Visited, and a couple of edited notes.
 
@@ -27,7 +35,6 @@ interface SampleRow {
 interface SampleList {
   name: string
   description?: string
-  bom?: boolean
   rows: SampleRow[]
 }
 
@@ -44,8 +51,19 @@ const NOTES = [
   'Their lemon tart, trust me 🍋',
 ]
 
-export function placeUrl(p: WorldPlace): string {
-  return `https://www.google.com/maps/place/${encodeURIComponent(p.title).replace(/%20/g, '+')}/data=!4m2!3m1!1s${p.fid}`
+export function placeUrl(p: WorldPlace, title = p.title): string {
+  return `https://www.google.com/maps/place/${encodeURIComponent(title).replace(/%20/g, '+')}/data=!4m2!3m1!1s${p.fid}`
+}
+
+function dms(lat: number, lng: number): string {
+  const part = (v: number, pos: string, neg: string) => {
+    const a = Math.abs(v)
+    const d = Math.floor(a)
+    const m = Math.floor((a - d) * 60)
+    const s = ((a - d) * 60 - m) * 60
+    return `${d}°${String(m).padStart(2, '0')}'${s.toFixed(1).padStart(4, '0')}"${v >= 0 ? pos : neg}`
+  }
+  return `${part(lat, 'N', 'S')} ${part(lng, 'E', 'W')}`
 }
 
 export function cidUrl(p: WorldPlace): string {
@@ -59,10 +77,11 @@ function csvField(v: string | undefined): string {
 
 export function toCsv(list: SampleList): string {
   const lines: string[] = []
+  // Description placement is still an assumption: none of the owner's lists has one.
   if (list.description) lines.push(csvField(list.description), '')
-  lines.push('Title,Note,URL,Tags,Comment')
+  lines.push('Title,Note,URL,Tags,Comment', ',,,,')
   for (const r of list.rows) lines.push([r.title, r.note, r.url, r.tags, r.comment].map(csvField).join(','))
-  return (list.bom ? '\uFEFF' : '') + lines.join('\n') + '\n'
+  return lines.join('\n') + '\n'
 }
 
 interface Assignment {
@@ -110,6 +129,7 @@ export function buildSampleTakeout(opts: SampleOptions = {}): SampleTakeout {
   const favorites: SampleRow[] = []
   const coffee: SampleRow[] = []
   const lisbon: SampleRow[] = []
+  const istanbul: SampleRow[] = []
   const starred: WorldPlace[] = []
 
   for (const p of world) {
@@ -129,27 +149,40 @@ export function buildSampleTakeout(opts: SampleOptions = {}): SampleTakeout {
     if (a.favorite && isVisited) favorites.push({ ...row, note: undefined })
     if (p.category === 'cafe' && createRng(seed + p.index).chance(0.5)) coffee.push({ title: p.title, url: placeUrl(p) })
     if (p.city === 'Lisbon' && isWant) lisbon.push({ title: p.title, url: placeUrl(p), note: note })
+    // Lists saved while the app was in another language title the same place
+    // differently ("Galata Kulesi" in one, "Galata Tower" in another).
+    if (p.city === 'Istanbul' && isVisited && createRng(seed + p.index * 13).chance(0.3)) {
+      const title = p.index % 2 === 0 ? `${p.title} ${p.neighborhood}` : p.title
+      istanbul.push({ title, url: placeUrl(p, title) })
+    }
     if (a.starred) starred.push(p)
   }
 
-  // Dropped pins carry coordinates in the URL and no feature ID.
-  for (let i = 0; i < 3; i++) {
-    const city = CITIES[i]!
+  // Dropped pins carry coordinates in the URL and no feature ID. Their title is
+  // whatever the app called them: "Dropped pin", the Turkish "İşaretli Yer",
+  // the coordinates in degrees, or nothing at all.
+  const pinTitles = ['Dropped pin', 'İşaretli Yer', '', '']
+  for (let i = 0; i < 4; i++) {
+    const city = CITIES[i % 3]!
     const hood = city.neighborhoods[i]!
-    const lat = (hood.lat + 0.002 * (i + 1)).toFixed(6)
-    const lng = (hood.lng - 0.002 * (i + 1)).toFixed(6)
-    wantToGo.push({ title: 'Dropped pin', note: i === 0 ? 'Parking spot near the ferry' : undefined, url: `https://www.google.com/maps/search/${lat},${lng}` })
+    const lat = hood.lat + 0.002 * (i + 1)
+    const lng = hood.lng - 0.002 * (i + 1)
+    const title = i === 2 ? dms(lat, lng) : pinTitles[i]!
+    wantToGo.push({ title, note: i === 0 ? 'Parking spot near the ferry' : undefined, url: `https://www.google.com/maps/search/${lat.toFixed(7)},${lng.toFixed(7)}` })
   }
   // Rows without a URL exist in the wild; they fall back to a hashed key.
   wantToGo.push({ title: 'That ramen place Elif mentioned', note: 'Somewhere in Shibuya?' })
 
   const lists: SampleList[] = [
     { name: 'Want to go', rows: wantToGo },
-    { name: 'Visited', rows: visited, bom: true },
+    { name: 'Visited', rows: visited },
     { name: 'Favorite places', rows: favorites },
     { name: 'Coffee ☕', rows: coffee },
     { name: 'Lisbon trip', description: 'Lisbon, long weekend in May', rows: lisbon },
-    { name: 'Travel plans', rows: [] },
+    { name: 'Istanbul', rows: istanbul },
+    // Not Maps lists: an empty Google app collection and a saved film.
+    { name: 'Images', rows: [] },
+    { name: 'Default list(1)', rows: [{ title: 'The Man from Earth', url: 'https://www.google.com' }] },
   ]
 
   const starredJson = {
@@ -177,6 +210,26 @@ export function buildSampleTakeout(opts: SampleOptions = {}): SampleTakeout {
   const files: Record<string, Uint8Array> = {}
   for (const list of lists) files[`Takeout/Saved/${list.name}.csv`] = strToU8(toCsv(list))
   files['Takeout/Maps (your places)/Saved Places.json'] = strToU8(JSON.stringify(starredJson, null, 2))
+  const reviewed = world.slice(0, 2)
+  files['Takeout/Maps (your places)/Reviews.json'] = strToU8(
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: reviewed.map((p) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+        // Review URLs zero the first half of the feature ID.
+        properties: {
+          date: '2026-06-30T19:14:02.297475Z',
+          five_star_rating_published: 5,
+          google_maps_url: `https://www.google.com/maps/place//data=!4m2!3m1!1s0x0:${p.fid.split(':')[1]}`,
+          location: { address: p.address, country_code: p.countryCode, name: p.title },
+        },
+      })),
+    }),
+  )
+  files['Takeout/Maps/My labeled places/Labeled places.json'] = strToU8(
+    JSON.stringify({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [29.03, 40.99] }, properties: { name: 'Home' } }] }),
+  )
   files['Takeout/archive_browser.html'] = strToU8('<html><body>Takeout archive browser</body></html>')
   return { files, world, lists }
 }

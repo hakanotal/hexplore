@@ -63,7 +63,8 @@ export async function healQueue(db: HexploreDB, now: number): Promise<void> {
   const resolve: string[] = []
   for (const p of places) {
     if (p.resolveStatus === 'pending' && !has.has(`resolve:${p.id}`)) resolve.push(p.id)
-    if (p.lat !== undefined && !p.city && !has.has(`area:${p.id}`)) area.push(p.id)
+    // Pending places with a feature ID point get their area after resolve.
+    if (p.lat !== undefined && !p.city && p.resolveStatus !== 'pending' && !has.has(`area:${p.id}`)) area.push(p.id)
     if (p.osmTags && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
   }
   await db.jobs.bulkPut([...enqueueJobs('resolve', resolve, now), ...enqueueJobs('area', area, now), ...enqueueJobs('classify', classify, now)])

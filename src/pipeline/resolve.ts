@@ -1,4 +1,4 @@
-import type { Membership, Place, ResolveCandidate } from '../domain/types'
+import { UNTITLED_PLACE, type Membership, type Place, type ResolveCandidate } from '../domain/types'
 import type { GeoCandidate, Geocoder } from '../services/geocoder'
 import { haversineKm, nameSimilarity, normalizeName } from './similarity'
 
@@ -6,6 +6,11 @@ import { haversineKm, nameSimilarity, normalizeName } from './similarity'
 // geographically, so confident matches are resolved first, each list's
 // clusters are computed from them, and ambiguous searches are then scored
 // against those clusters.
+//
+// Most list rows already carry an approximate point decoded from the Google
+// feature ID (coordSource 'fid'). That point outweighs any list context: the
+// search only has to find the matching POI next to it, and when none matches
+// Google's own point is kept.
 
 export const ACCEPT_THRESHOLD = 0.85
 export const REVIEW_THRESHOLD = 0.5
@@ -18,6 +23,17 @@ export interface Cluster {
   share: number
   city?: string
 }
+
+/** Candidates this close to the feature ID point count as on top of it. */
+const ANCHOR_RADIUS_KM = 0.25
+const ANCHOR_DECAY_KM = 1
+const ANCHOR_WEIGHT = 0.5
+/** Name similarity at which a distant candidate is worth showing the user. */
+const ANCHOR_NAME_MATCH = 0.85
+/** Confidence in Google's point when no candidate matched near it. */
+export const FID_CONFIDENCE = 0.9
+/** Confidence when a same-named candidate elsewhere contests Google's point. */
+const FID_CONTESTED_CONFIDENCE = 0.6
 
 const CELL_DEG = 0.25 // ~25 km grid
 const CLUSTER_RADIUS_KM = 12
@@ -98,7 +114,24 @@ export interface ScoredCandidate {
   score: number
 }
 
-export function scoreCandidates(title: string, candidates: GeoCandidate[], ctx: ResolveContext): ScoredCandidate[] {
+function scoreAgainstAnchor(title: string, candidates: GeoCandidate[], anchor: { lat: number; lng: number }): ScoredCandidate[] {
+  return candidates
+    .map((candidate) => {
+      const name = nameSimilarity(title, candidate.name)
+      const d = haversineKm(anchor, candidate)
+      const proximity = d <= ANCHOR_RADIUS_KM ? 1 : Math.exp(-(d - ANCHOR_RADIUS_KM) / ANCHOR_DECAY_KM)
+      return { candidate, name, proximity, score: (1 - ANCHOR_WEIGHT) * name + ANCHOR_WEIGHT * proximity }
+    })
+    .sort((a, b) => b.score - a.score)
+}
+
+export function scoreCandidates(
+  title: string,
+  candidates: GeoCandidate[],
+  ctx: ResolveContext,
+  anchor?: { lat: number; lng: number },
+): ScoredCandidate[] {
+  if (anchor) return scoreAgainstAnchor(title, candidates, anchor)
   const hintText = normalizeName(ctx.hints.join(' '))
   const namesCity = (c: GeoCandidate) => !!hintText && !!c.city && hintText.includes(normalizeName(c.city))
   const anyHint = candidates.some(namesCity)
@@ -193,7 +226,49 @@ export function candidatePatch(c: GeoCandidate): Partial<Place> {
   }
 }
 
+function geocoderPatch(chosen: GeoCandidate, value: number, accepted: boolean, scored: ScoredCandidate[], geocoderId: string): Partial<Place> {
+  return {
+    ...candidatePatch(chosen),
+    coordSource: 'geocoder',
+    resolveStatus: accepted ? 'resolved' : 'flagged',
+    resolveConfidence: value,
+    resolveSource: geocoderId,
+    resolveCandidates: accepted ? undefined : toReviewCandidates(scored),
+  }
+}
+
+/** Refines a feature ID point. Never defers: list clusters add nothing to it. */
+async function resolveAnchored(place: Place, anchor: { lat: number; lng: number }, opts: ResolveOptions): Promise<ResolveOutcome> {
+  const keep: Partial<Place> = {
+    coordSource: 'fid',
+    resolveStatus: 'resolved',
+    resolveConfidence: FID_CONFIDENCE,
+    resolveSource: 'fid',
+    resolveCandidates: undefined,
+  }
+  if (place.title === UNTITLED_PLACE) return { kind: 'commit', patch: keep }
+
+  const candidates = await opts.geocoder.search({ text: place.title, near: anchor, limit: 5 }, opts.signal)
+  const scored = scoreCandidates(place.title, candidates, opts.ctx, anchor)
+  const result = confidence(scored)
+  if (result && result.value > ACCEPT_THRESHOLD) {
+    return { kind: 'commit', patch: geocoderPatch(scored[result.index]!.candidate, result.value, true, scored, opts.geocoder.id) }
+  }
+  // The right name away from Google's point: Google moved the pin after the ID
+  // was made, or it is another branch. Keep Google's point and offer the match.
+  if (scored[0] && scored[0].name >= ANCHOR_NAME_MATCH) {
+    return {
+      kind: 'commit',
+      patch: { ...keep, resolveStatus: 'flagged', resolveConfidence: FID_CONTESTED_CONFIDENCE, resolveCandidates: toReviewCandidates(scored) },
+    }
+  }
+  return { kind: 'commit', patch: keep }
+}
+
 export async function resolvePlace(place: Place, opts: ResolveOptions): Promise<ResolveOutcome> {
+  if (place.coordSource === 'fid' && place.lat !== undefined && place.lng !== undefined) {
+    return resolveAnchored(place, { lat: place.lat, lng: place.lng }, opts)
+  }
   const near = pickBias(opts.ctx)
   const candidates = await opts.geocoder.search({ text: place.title, near, limit: 5 }, opts.signal)
   const scored = scoreCandidates(place.title, candidates, opts.ctx)
@@ -227,17 +302,8 @@ export async function resolvePlace(place: Place, opts: ResolveOptions): Promise<
     }
   }
 
-  const chosen = scored[result.index]!.candidate
-  const accepted = result.value > ACCEPT_THRESHOLD
   return {
     kind: 'commit',
-    patch: {
-      ...candidatePatch(chosen),
-      coordSource: 'geocoder',
-      resolveStatus: accepted ? 'resolved' : 'flagged',
-      resolveConfidence: result.value,
-      resolveSource: opts.geocoder.id,
-      resolveCandidates: accepted ? undefined : toReviewCandidates(scored),
-    },
+    patch: geocoderPatch(scored[result.index]!.candidate, result.value, result.value > ACCEPT_THRESHOLD, scored, opts.geocoder.id),
   }
 }

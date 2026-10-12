@@ -3,14 +3,21 @@
 
 export type ListRole = 'visited' | 'wantToGo' | 'favorite' | 'other'
 
+/** Title given to rows Takeout exported without one; nothing to search for. */
+export const UNTITLED_PLACE = 'Untitled place'
+
 export type ResolveStatus =
-  | 'pending' // no coordinates yet, waiting for the resolve stage
+  | 'pending' // waiting for the resolve stage; may already carry an approximate point (coordSource 'fid')
   | 'resolved' // accepted automatically (confidence > 0.85) or came with coordinates
   | 'flagged' // accepted but worth a second look (0.5 to 0.85)
   | 'review' // needs a human decision (< 0.5 or no candidates)
   | 'manual' // placed by the user
 
-export type CoordSource = 'takeout' | 'url' | 'geocoder' | 'manual'
+/**
+ * Where coordinates came from. `fid` is the approximate point decoded from the
+ * Google feature ID; the resolve stage refines it.
+ */
+export type CoordSource = 'takeout' | 'url' | 'fid' | 'geocoder' | 'manual'
 
 export type StageName = 'resolve' | 'match' | 'classify' | 'area' | 'embed'
 
@@ -81,6 +88,8 @@ export interface List {
 export interface Membership {
   placeId: string
   listId: string
+  /** The place's title as this list wrote it; lists saved in different languages disagree. */
+  title?: string
   note?: string
   googleTags?: string
   comment?: string

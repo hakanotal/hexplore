@@ -2,6 +2,8 @@
 // sample zip, demo data, the offline fixture geocoder and the perf dataset all
 // derive from it, so they agree with each other.
 
+import { latLngToS2Cell } from '../import/s2'
+
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0
   return () => {
@@ -225,8 +227,17 @@ function weightedPick<T extends { weight: number }>(rng: Rng, items: readonly T[
   return items[items.length - 1]!
 }
 
-function makeFid(rng: Rng): { fid: string; cid: string } {
-  const a = `0x${rng.hex(16)}`
+/**
+ * Real feature IDs start with the S2 leaf cell where Google created the place,
+ * usually tens of metres from where the place sits now. The random draw that
+ * used to fill the first half now supplies that offset, so the rest of the
+ * world stays the same for a given seed.
+ */
+function makeFid(rng: Rng, lat: number, lng: number): { fid: string; cid: string } {
+  const jitter = rng.hex(16)
+  const dLat = (parseInt(jitter.slice(0, 4), 16) / 0xffff - 0.5) * 0.0008
+  const dLng = (parseInt(jitter.slice(4, 8), 16) / 0xffff - 0.5) * 0.0008
+  const a = `0x${latLngToS2Cell(lat + dLat, lng + dLng).toString(16).padStart(16, '0')}`
   // Keep the high bit clear so the CID stays a plausible positive 63-bit number.
   const b = `0x${(rng.int(1, 7)).toString(16)}${rng.hex(15)}`
   return { fid: `${a}:${b}`, cid: BigInt(b).toString(10) }
@@ -239,7 +250,7 @@ function buildPlace(rng: Rng, index: number, city: City, spec: CategorySpec, tit
   const lng = +(hood.lng + (rng.next() - 0.5) * 0.016).toFixed(6)
   const street = rng.pick(city.streets)
   const houseNumber = String(rng.int(1, 180))
-  const { fid, cid } = makeFid(rng)
+  const { fid, cid } = makeFid(rng, lat, lng)
   const tags = [...new Set([rng.pick(spec.tags), rng.pick(spec.tags)])].slice(0, rng.int(1, 2))
   const priceLevel = spec.price ? rng.int(spec.price[0], spec.price[1]) : null
   const osmTags: Record<string, string> = { [spec.osm[0]]: spec.osm[1], name: title }

@@ -7,4 +7,5 @@
 - Dexie schema changes go in a new `version()` block, never edit version 1.
 - Zustand selectors must return stable values; derive arrays with `useMemo` (an array-returning selector caused an infinite render loop once).
 - Heavy work (import, pipeline, indexing) runs in workers. Keep the main thread under 50 ms per task.
-- The real Takeout format is not yet confirmed against the owner's export; the parser matches columns by name and the sample in `src/dev/sampleTakeout.ts` encodes current assumptions.
+- The Takeout format was confirmed against the owner's export (Oct 2026); `src/dev/sampleTakeout.ts` mirrors it. List URLs carry only the feature ID, never coordinates. The ID's first half is an S2 leaf cell near the place (`src/import/s2.ts`), so rows get an approximate point (`coordSource: 'fid'`) at import and the resolve stage refines it. List description placement is still unconfirmed.
+- `data/` holds the owner's real export and is gitignored; never commit it or copy it into `public/` or fixtures. `npm run inspect:takeout -- data/Takeout [--zip out.zip]` reports what the app will make of an export.

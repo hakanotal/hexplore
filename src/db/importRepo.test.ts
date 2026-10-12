@@ -24,7 +24,7 @@ describe('importTakeout', () => {
       db.imports.toArray(),
     ])
     expect(places).toBe(out.plan.counts.newPlaces)
-    expect(lists).toHaveLength(7)
+    expect(lists).toHaveLength(7) // the empty Images collection gets no list
     expect(lists.every((l) => l.role === null)).toBe(true)
     expect(ms).toBe(out.plan.counts.newMemberships)
     expect(jobs).toBe(out.plan.counts.needsResolve)
@@ -35,7 +35,7 @@ describe('importTakeout', () => {
   it('re-importing the same export changes nothing', async () => {
     await importTakeout(zip(1), 1000)
     const again = await importTakeout(zip(1), 2000)
-    expect(again.plan.counts).toMatchObject({ newPlaces: 0, updatedPlaces: 0, newMemberships: 0, removedMemberships: 0, skippedFiles: 7 })
+    expect(again.plan.counts).toMatchObject({ newPlaces: 0, updatedPlaces: 0, newMemberships: 0, removedMemberships: 0, skippedFiles: 8 })
   })
 
   it('a later export adds places, moves visited ones and keeps enrichment', async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSampleTakeoutZip } from '../dev/sampleTakeout'
 import { FixtureGeocoder } from '../dev/fixtureGeocoder'
 import { generateWorld } from '../dev/world'
@@ -6,8 +6,9 @@ import { importTakeout } from '../db/importRepo'
 import type { HexploreDB } from '../db/db'
 import { freshDb } from '../test/db'
 import { runPipeline, type PipelineServices } from './runner'
-import { confidence, scoreCandidates } from './resolve'
-import type { GeoCandidate } from '../services/geocoder'
+import { confidence, FID_CONFIDENCE, resolvePlace, scoreCandidates } from './resolve'
+import type { GeoCandidate, Geocoder } from '../services/geocoder'
+import type { Place } from '../domain/types'
 
 let db: HexploreDB
 beforeEach(() => {
@@ -47,6 +48,41 @@ describe('confidence scoring', () => {
   it('blends in an LLM verdict', () => {
     const s = scoreCandidates('Starbucks', [cand('Starbucks', 41, 29), cand('Starbucks', 38.7, -9.1)], { lists: [], hints: [] })
     expect(confidence(s, { index: 1, confidence: 0.95 })).toMatchObject({ index: 1 })
+  })
+})
+
+describe('resolving a feature ID point', () => {
+  const place = (title: string): Place => ({
+    id: 'g1', title, lat: 41.0256, lng: 28.9742, coordSource: 'fid', resolveStatus: 'pending', aiTags: [], firstSeenAt: 0, updatedAt: 0,
+  })
+  const geocoder = (...candidates: GeoCandidate[]): Geocoder => ({ id: 'stub', search: async () => candidates })
+  const ctx = { lists: [], hints: [] }
+
+  it('takes the matching POI next to the point', async () => {
+    const out = await resolvePlace(place('Galata Tower'), { geocoder: geocoder(cand('Galata Tower', 41.02562, 28.97418, 'Istanbul')), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'geocoder', resolveStatus: 'resolved', city: 'Istanbul' } })
+  })
+
+  it('beats a same-named branch across town', async () => {
+    const near = cand('Starbucks', 41.0262, 28.9748)
+    const far = cand('Starbucks', 40.99, 29.03)
+    const out = await resolvePlace(place('Starbucks'), { geocoder: geocoder(far, near), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { lat: near.lat, resolveStatus: 'resolved' } })
+  })
+
+  it("keeps Google's point and offers a distant same-named match for review", async () => {
+    const out = await resolvePlace(place('La Grande Roue'), { geocoder: geocoder(cand('La Grande Roue', 41.045, 28.99)), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'flagged' } })
+    if (out.kind === 'commit') expect(out.patch.resolveCandidates).toHaveLength(1)
+  })
+
+  it("keeps Google's point when nothing matches, and skips the search for untitled rows", async () => {
+    const out = await resolvePlace(place('Rasim abi'), { geocoder: geocoder(cand('Something else', 41.0256, 28.9742)), ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'fid', resolveStatus: 'resolved', resolveConfidence: FID_CONFIDENCE } })
+    const search = vi.fn(async () => [])
+    const untitled = await resolvePlace(place('Untitled place'), { geocoder: { id: 'stub', search }, ctx, final: false })
+    expect(untitled).toMatchObject({ kind: 'commit', patch: { resolveStatus: 'resolved' } })
+    expect(search).not.toHaveBeenCalled()
   })
 })
 

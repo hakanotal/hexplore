@@ -93,6 +93,16 @@ export function parseGoogleUrl(raw: string | undefined | null): GoogleUrlInfo {
   return info
 }
 
+const MAPS_URL_RE = /\/\/(?:www\.)?(?:google\.[a-z.]+\/maps|maps\.google\.|maps\.app\.goo\.gl|goo\.gl\/maps)/i
+
+/**
+ * Takeout's "Saved" product also exports collections that are not Maps lists,
+ * such as saved films, whose rows link to plain google.com. Those are not places.
+ */
+export function isMapsUrl(raw: string, info: GoogleUrlInfo = parseGoogleUrl(raw)): boolean {
+  return !!(info.fid || info.cid || info.lat !== undefined) || MAPS_URL_RE.test(raw)
+}
+
 /** Small, fast, non-cryptographic string hash (cyrb53) for fallback keys. */
 export function hashString(str: string, seed = 0): string {
   let h1 = 0xdeadbeef ^ seed

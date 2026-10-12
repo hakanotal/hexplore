@@ -1,7 +1,6 @@
 # Hexplore
 
 A personal, installable web app that imports your Google Maps saved places from Takeout, enriches them with coordinates, areas and categories from OpenStreetMap, and shows them on a fast, filterable map. Everything lives in your browser; only geocoder and AI calls leave the device.
-
 The full plan (goals, data model, phases, risks) is in the Software Development Plan this repo was started from. This README covers what exists and how to work on it.
 
 ## Quick start

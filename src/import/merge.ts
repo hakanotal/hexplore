@@ -1,4 +1,4 @@
-import type { ImportCounts, List, ListRole, Membership, Place } from '../domain/types'
+import type { CoordSource, ImportCounts, List, ListRole, Membership, Place } from '../domain/types'
 import type { ParsedTakeout, SourceRow } from './takeout'
 
 // Pure merge of a parsed Takeout into the existing store. Produces the exact set
@@ -59,7 +59,15 @@ function membershipKey(placeId: string, listId: string): string {
   return `${placeId}\u0000${listId}`
 }
 
-/** Applies Google-sourced fields from a row. Returns true when anything changed. */
+// Google-sourced positions, weakest first: the feature ID's S2 cell, a pin or
+// place marker in the URL, then Saved Places.json. A stronger or equal source
+// replaces a weaker one; geocoder results and manual fixes are never replaced.
+const COORD_RANK: Partial<Record<CoordSource, number>> = { fid: 0, url: 1, takeout: 2 }
+
+/**
+ * Applies Google-sourced fields from a row. Returns true when anything changed.
+ * The title is settled separately once every list has been read.
+ */
 function applyRowToPlace(place: Place, row: SourceRow): boolean {
   let changed = false
   const set = <K extends keyof Place>(key: K, value: Place[K] | undefined) => {
@@ -68,24 +76,32 @@ function applyRowToPlace(place: Place, row: SourceRow): boolean {
       changed = true
     }
   }
-  set('title', row.title)
-  set('googleUrl', row.url)
+  // Lists in different languages write different name slugs for the same
+  // feature, so only take the URL when it points somewhere new.
+  if (!place.googleUrl || (row.googleFid && row.googleFid !== place.googleFid)) set('googleUrl', row.url)
   set('googleFid', row.googleFid)
   set('googleCid', row.googleCid)
   set('googleAddress', row.address)
   if (row.countryCode && !place.countryCode) set('countryCode', row.countryCode.toUpperCase())
 
-  // Coordinates from Google win over pending or URL-derived ones, never over
-  // geocoder results the user accepted or a manual fix.
-  const hasRowCoords = row.lat !== undefined && row.lng !== undefined
-  const canOverwrite = place.lat === undefined || place.coordSource === 'takeout' || place.coordSource === 'url'
-  if (hasRowCoords && canOverwrite && (place.lat !== row.lat || place.lng !== row.lng)) {
+  const rowRank = row.coordSource ? COORD_RANK[row.coordSource] : undefined
+  const placeRank = place.coordSource ? COORD_RANK[place.coordSource] : undefined
+  const hasRowCoords = row.lat !== undefined && row.lng !== undefined && rowRank !== undefined
+  const canOverwrite = place.lat === undefined || (placeRank !== undefined && rowRank !== undefined && rowRank >= placeRank)
+  if (hasRowCoords && canOverwrite && (place.lat !== row.lat || place.lng !== row.lng || place.coordSource !== row.coordSource)) {
     place.lat = row.lat
     place.lng = row.lng
     place.coordSource = row.coordSource
-    place.resolveStatus = 'resolved'
-    place.resolveConfidence = 1
-    place.resolveSource = row.coordSource
+    if (row.coordSource === 'fid') {
+      // Approximate, so the resolve stage still looks for the exact POI.
+      place.resolveStatus = 'pending'
+      place.resolveConfidence = undefined
+      place.resolveSource = undefined
+    } else {
+      place.resolveStatus = 'resolved'
+      place.resolveConfidence = 1
+      place.resolveSource = row.coordSource
+    }
     changed = true
   }
   return changed
@@ -93,6 +109,7 @@ function applyRowToPlace(place: Place, row: SourceRow): boolean {
 
 function newPlace(row: SourceRow, now: number): Place {
   const hasCoords = row.lat !== undefined && row.lng !== undefined
+  const exact = hasCoords && row.coordSource !== 'fid'
   return {
     id: row.placeId,
     title: row.title,
@@ -104,9 +121,9 @@ function newPlace(row: SourceRow, now: number): Place {
     lat: row.lat,
     lng: row.lng,
     coordSource: row.coordSource,
-    resolveStatus: hasCoords ? 'resolved' : 'pending',
-    resolveConfidence: hasCoords ? 1 : undefined,
-    resolveSource: hasCoords ? row.coordSource : undefined,
+    resolveStatus: exact ? 'resolved' : 'pending',
+    resolveConfidence: exact ? 1 : undefined,
+    resolveSource: exact ? row.coordSource : undefined,
     aiTags: [],
     firstSeenAt: now,
     updatedAt: now,
@@ -123,6 +140,8 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
   const newPlaceIds = new Set<string>()
   const newListIds: string[] = []
   const fileHashes = { ...existing.lastFileHashes }
+  /** Titles rows gave existing places, in list order; settled after the loop. */
+  const titleCandidates = new Map<string, string[]>()
 
   const existingMemberships = new Map<string, Membership>()
   for (const m of existing.memberships) existingMemberships.set(membershipKey(m.placeId, m.listId), m)
@@ -144,6 +163,10 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
     fileHashes[list.path] = list.hash
 
     let listRecord = lists.get(list.listId) ?? (existing.lists.has(list.listId) ? { ...existing.lists.get(list.listId)! } : undefined)
+    // Takeout also exports empty collections that are not Maps lists ("Images",
+    // "Screenshots"). A list is created once it has places; a known list that
+    // empties out is still processed below so its memberships are removed.
+    if (!listRecord && list.rows.length === 0) continue
     if (!listRecord) {
       listRecord = {
         id: list.listId,
@@ -176,10 +199,17 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
         place = newPlace(row, now)
         newPlaceIds.add(place.id)
         places.set(place.id, place)
-      } else if (applyRowToPlace(place, row)) {
-        place.updatedAt = now
-        places.set(place.id, place)
-        if (!newPlaceIds.has(place.id)) updatedPlaceIds.add(place.id)
+      } else {
+        if (applyRowToPlace(place, row)) {
+          place.updatedAt = now
+          places.set(place.id, place)
+          if (!newPlaceIds.has(place.id)) updatedPlaceIds.add(place.id)
+        }
+        if (row.title !== place.title) {
+          const titles = titleCandidates.get(place.id)
+          if (titles) titles.push(row.title)
+          else titleCandidates.set(place.id, [row.title])
+        }
       }
 
       const key = membershipKey(row.placeId, list.listId)
@@ -188,6 +218,7 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
         memberships.set(key, {
           placeId: row.placeId,
           listId: list.listId,
+          title: row.title,
           note: row.note,
           googleTags: row.tags,
           comment: row.comment,
@@ -204,6 +235,7 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
         changed = true
       }
       for (const [field, value] of [
+        ['title', row.title],
         ['note', row.note],
         ['googleTags', row.tags],
         ['comment', row.comment],
@@ -223,6 +255,29 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
       if (m.listId !== list.listId || m.removedAt !== undefined || seenInList.has(m.placeId)) continue
       memberships.set(membershipKey(m.placeId, m.listId), { ...m, removedAt: now })
       counts.removedMemberships++
+    }
+  }
+
+  // A place saved in two lists can carry two titles (one list saved while the
+  // app was in Turkish, another in English). Keep the current title while any
+  // active membership still uses it, so re-imports don't flip between them.
+  if (titleCandidates.size) {
+    const activeTitles = new Map<string, Set<string>>()
+    const current = new Map(existingMemberships)
+    for (const [key, m] of memberships) current.set(key, m)
+    for (const m of current.values()) {
+      if (m.removedAt !== undefined || m.title === undefined || !titleCandidates.has(m.placeId)) continue
+      const set = activeTitles.get(m.placeId)
+      if (set) set.add(m.title)
+      else activeTitles.set(m.placeId, new Set([m.title]))
+    }
+    for (const [placeId, titles] of titleCandidates) {
+      const place = getPlace(placeId)!
+      if (activeTitles.get(placeId)?.has(place.title)) continue
+      place.title = titles[0]!
+      place.updatedAt = now
+      places.set(placeId, place)
+      if (!newPlaceIds.has(placeId)) updatedPlaceIds.add(placeId)
     }
   }
 

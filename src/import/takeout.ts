@@ -1,8 +1,9 @@
 import { unzipSync, strFromU8 } from 'fflate'
 import { parseListCsv } from './listCsv'
-import { isFeatureCollection, looksLikeReviews, parseStarred } from './starred'
-import { hashString, parseGoogleUrl, placeKey } from './googleUrl'
-import type { CoordSource } from '../domain/types'
+import { isFeatureCollection, looksLikeReviews, looksLikeSavedPlaces, parseStarred } from './starred'
+import { hashString, isMapsUrl, parseGoogleUrl, placeKey } from './googleUrl'
+import { fidToLatLng } from './s2'
+import { UNTITLED_PLACE, type CoordSource } from '../domain/types'
 
 export const STARRED_LIST_ID = 'starred'
 export const STARRED_LIST_NAME = 'Starred places'
@@ -86,26 +87,47 @@ function csvToSourceList(path: string, text: string, hash: string, warnings: str
   const parsed = parseListCsv(text)
   const name = listNameFromPath(path)
   if (parsed.rows.length === 0 && parsed.warnings.some((w) => w.startsWith('No header'))) return null
-  for (const w of parsed.warnings) warnings.push(`${name}: ${w}`)
 
-  const rows: SourceRow[] = parsed.rows.map((r) => {
+  const rows: SourceRow[] = []
+  let notPlaces = 0
+  for (const r of parsed.rows) {
     const info = parseGoogleUrl(r.url)
-    const hasCoords = info.lat !== undefined && info.lng !== undefined
-    return {
-      placeId: placeKey(info, r.title, name),
-      title: r.title,
+    if (r.url && !isMapsUrl(r.url, info)) {
+      notPlaces++
+      continue
+    }
+    let lat = info.lat
+    let lng = info.lng
+    let coordSource: CoordSource | undefined = lat !== undefined ? 'url' : undefined
+    if (lat === undefined && info.fid) {
+      const point = fidToLatLng(info.fid)
+      if (point) {
+        ;({ lat, lng } = point)
+        coordSource = 'fid'
+      }
+    }
+    // Real exports have rows with an empty title: pins the app saved without a
+    // label, and the odd place whose URL has an empty name segment.
+    const title = r.title ?? (coordSource === 'url' && !info.cid ? 'Dropped pin' : UNTITLED_PLACE)
+    rows.push({
+      placeId: placeKey(info, title, name),
+      title,
       googleFid: info.fid,
       googleCid: info.cid,
       url: r.url,
       note: r.note,
       tags: r.tags,
       comment: r.comment,
-      lat: info.lat,
-      lng: info.lng,
-      coordSource: hasCoords ? 'url' : undefined,
+      lat,
+      lng,
+      coordSource,
       rowNumber: r.rowNumber,
-    }
-  })
+    })
+  }
+  // A collection with only non-Maps rows (e.g. saved films) is not a list.
+  if (rows.length === 0 && notPlaces > 0) return null
+  for (const w of parsed.warnings) warnings.push(`${name}: ${w}`)
+  if (notPlaces) warnings.push(`${name}: skipped ${notPlaces === 1 ? '1 row that is not a Google Maps place' : `${notPlaces} rows that are not Google Maps places`}`)
   return { path, listId: listIdFor(name), name, source: 'csv', description: parsed.description, hash, rows }
 }
 
@@ -160,7 +182,7 @@ export async function readTakeout(input: InputFile[]): Promise<ParsedTakeout> {
         continue
       }
       const named = /saved places\.(geo)?json$/i.test(file.path)
-      if (isFeatureCollection(json) && (named || !looksLikeReviews(json))) {
+      if (isFeatureCollection(json) && (named || (looksLikeSavedPlaces(json) && !looksLikeReviews(json)))) {
         lists.push(starredToSourceList(file.path, json, await sha256(file.data), warnings))
       } else {
         ignored.push(file.path)

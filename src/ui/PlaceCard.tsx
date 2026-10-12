@@ -3,7 +3,7 @@ import { categoryColor, categoryLabel } from '../domain/taxonomy'
 import { chooseCandidate, confirmLocation, logVisit, removeLastVisit, setManualLocation, setUserTags } from '../db/placeRepo'
 import { refresh, startPipeline } from '../state/actions'
 import { useApp } from '../state/store'
-import { areaLine, directionsUrl, distanceLabel, formatDate, googleMapsUrl } from './format'
+import { areaLine, directionsUrl, distanceLabel, formatDate, googleMapsUrl, sourceLabel } from './format'
 
 export function PlaceCard({ id }: { id: string }) {
   const v = useApp((s) => s.byId.get(id))
@@ -82,7 +82,13 @@ export function PlaceCard({ id }: { id: string }) {
       {(p.resolveStatus === 'review' || p.resolveStatus === 'flagged' || p.resolveStatus === 'pending') && (
         <section className="mt-4 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200" data-testid="review-panel">
           <h3 className="text-[14px] font-semibold text-amber-900">
-            {p.resolveStatus === 'pending' ? 'Not located yet' : p.resolveStatus === 'review' ? 'Location needs your help' : 'Check this location'}
+            {p.resolveStatus === 'pending'
+              ? p.lat !== undefined
+                ? 'Approximate location'
+                : 'Not located yet'
+              : p.resolveStatus === 'review'
+                ? 'Location needs your help'
+                : 'Check this location'}
           </h3>
           {p.resolveConfidence !== undefined && p.resolveStatus !== 'pending' && (
             <p className="text-[13px] text-amber-800">Match confidence {Math.round(p.resolveConfidence * 100)}%</p>
@@ -174,7 +180,7 @@ export function PlaceCard({ id }: { id: string }) {
 
       <p className="mt-5 text-[12px] text-slate-400">
         First seen {formatDate(p.firstSeenAt)}
-        {p.resolveSource ? ` · located via ${p.resolveSource}` : ''}
+        {p.resolveSource ? ` · located via ${sourceLabel(p.resolveSource)}` : ''}
         {p.osmId ? ` · OSM ${p.osmId}` : ''}
       </p>
     </div>

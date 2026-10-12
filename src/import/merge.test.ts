@@ -112,6 +112,55 @@ describe('planImport', () => {
     expect(plan.counts).toMatchObject({ newPlaces: 1, updatedPlaces: 0 })
   })
 
+  it('puts feature ID points on the map but leaves them pending for refinement', () => {
+    const plan = planImport(parsed(list('A', [{ placeId: 'g1', title: 'x', lat: 41, lng: 29, coordSource: 'fid' }])), empty, T0)
+    expect(plan.putPlaces[0]).toMatchObject({ lat: 41, lng: 29, coordSource: 'fid', resolveStatus: 'pending' })
+    expect(plan.putPlaces[0]!.resolveConfidence).toBeUndefined()
+    expect(plan.resolveIds).toEqual(['g1'])
+  })
+
+  it('lets stronger Google coordinates replace weaker ones, never the reverse', () => {
+    const fidRow = { placeId: 'g1', title: 'x', lat: 41, lng: 29, coordSource: 'fid' as const }
+    const starRow = { placeId: 'g1', title: 'x', lat: 41.001, lng: 29.001, coordSource: 'takeout' as const }
+    // Same import, either order: Saved Places.json wins.
+    for (const lists of [[list('A', [fidRow]), list('S', [starRow])], [list('S', [starRow]), list('A', [fidRow])]]) {
+      const plan = planImport(parsed(...lists), empty, T0)
+      expect(plan.putPlaces[0]).toMatchObject({ lat: 41.001, coordSource: 'takeout', resolveStatus: 'resolved' })
+    }
+    // A later import with only the feature ID point leaves the better one alone.
+    const state = stateFrom(planImport(parsed(list('S', [starRow])), empty, T0))
+    const plan = planImport(parsed(list('A', [fidRow])), state, T1)
+    expect(plan.putPlaces).toHaveLength(0)
+  })
+
+  it('keeps a title stable when two lists name the same place differently', () => {
+    const istanbul = (title: string, hash: string) => list('Istanbul', [{ placeId: 'g1', title }], hash)
+    const visited = (title: string, hash: string, extra: SourceList['rows'] = []) => list('Visited', [{ placeId: 'g1', title }, ...extra], hash)
+    const first = planImport(parsed(istanbul('Galata Tower', 'i1'), visited('Galata Kulesi', 'v1')), empty, T0)
+    expect(first.putPlaces[0]!.title).toBe('Galata Tower')
+    expect(first.putMemberships.map((m) => m.title).sort()).toEqual(['Galata Kulesi', 'Galata Tower'])
+
+    // Only Visited changed: the Turkish row must not flip the title.
+    const s1 = stateFrom(first)
+    const second = planImport(parsed(istanbul('Galata Tower', 'i1'), visited('Galata Kulesi', 'v2', [{ placeId: 'g2', title: 'Pandeli' }])), s1, T1)
+    expect(second.counts).toMatchObject({ newPlaces: 1, updatedPlaces: 0 })
+    expect(second.putPlaces.map((p) => p.id)).toEqual(['g2'])
+
+    // Google renamed it everywhere: take the new name.
+    const third = planImport(parsed(istanbul('Galata Tower Museum', 'i3'), visited('Galata Tower Museum', 'v3')), stateFrom(second, s1), T1 + 1)
+    expect(third.putPlaces.find((p) => p.id === 'g1')!.title).toBe('Galata Tower Museum')
+  })
+
+  it('does not create lists for empty collections but still empties known lists', () => {
+    const none = planImport(parsed(list('Images', [])), empty, T0)
+    expect(none.putLists).toHaveLength(0)
+    expect(none.counts.newLists).toBe(0)
+
+    const state = stateFrom(planImport(parsed(list('Trip', [{ placeId: 'g1', title: 'x' }], 'h1')), empty, T0))
+    const emptied = planImport(parsed(list('Trip', [], 'h2')), state, T1)
+    expect(emptied.putMemberships).toMatchObject([{ placeId: 'g1', removedAt: T1 }])
+  })
+
   it('keeps existing memberships for lists not in the import', () => {
     const m: Membership = { placeId: 'g9', listId: 'l-Other', addedAt: T0 }
     const plan = planImport(parsed(list('A', [{ placeId: 'g1', title: 'x' }])), { ...empty, memberships: [m] }, T1)
