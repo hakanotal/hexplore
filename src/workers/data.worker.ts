@@ -15,7 +15,7 @@ import type { GeocoderId } from '../services/geocoder'
 import { NominatimGeocoder } from '../services/nominatim'
 import { PhotonGeocoder } from '../services/photon'
 import { GooglePlaces } from '../services/googlePlaces'
-import { googlePlacesKey, loadSettings, takeGoogleCall } from '../db/settings'
+import { activeGeocoder, googlePlacesKey, loadSettings, setDataSource, takeGoogleCall } from '../db/settings'
 
 // Heavy jobs off the main thread: Takeout parsing and merging, the enrichment
 // pipeline, and demo data generation. Opens its own connection to the database.
@@ -47,7 +47,10 @@ async function servicesFor(id: GeocoderId): Promise<PipelineServices> {
 }
 
 const api = {
+  // Each import records its data source before writing any job, so a pipeline
+  // run that sees the jobs also sees which geocoder they belong to.
   async importFiles(files: { name: string; data: Uint8Array }[]): Promise<ImportOutcome> {
+    await setDataSource('takeout')
     return importTakeout(files.map((f) => ({ path: f.name, data: f.data })))
   },
 
@@ -55,11 +58,13 @@ const api = {
   async importSample(count: number, revision: 1 | 2): Promise<ImportOutcome> {
     const sample = buildSampleTakeout({ count, revision })
     await getDb().settings.put({ key: 'sampleWorldSize', value: sample.world.length + 50 })
+    await setDataSource('sample')
     return importTakeout(Object.entries(sample.files).map(([path, data]) => ({ path, data })))
   },
 
   async seedDemo(count: number): Promise<void> {
     const db = getDb()
+    await setDataSource('demo')
     const { places, lists, memberships } = buildDemoData(count)
     await db.transaction('rw', [db.places, db.lists, db.memberships], async () => {
       await db.places.bulkPut(places)
@@ -69,17 +74,18 @@ const api = {
   },
 
   /** Heals the queue first, so work that a new key or a new stage makes possible counts as pending. */
-  async pendingJobs(geocoder: GeocoderId): Promise<number> {
-    const services = await servicesFor(geocoder)
+  async pendingJobs(): Promise<number> {
+    const services = await servicesFor(await activeGeocoder())
     await healQueue(getDb(), Date.now(), { match: !!services.pois, ai: !!services.classifier })
     return getDb().jobs.filter((j) => j.status === 'queued').count()
   },
 
-  async runPipeline(geocoder: GeocoderId, onProgress: (p: PipelineProgress) => void): Promise<PipelineProgress | null> {
+  /** Picks the geocoder from the data source when the run starts, not when it was requested. */
+  async runPipeline(onProgress: (p: PipelineProgress) => void): Promise<PipelineProgress | null> {
     controller?.abort()
     controller = new AbortController()
     try {
-      return await runPipeline(getDb(), await servicesFor(geocoder), { onProgress, signal: controller.signal })
+      return await runPipeline(getDb(), await servicesFor(await activeGeocoder()), { onProgress, signal: controller.signal })
     } catch (err) {
       if (controller.signal.aborted) return null
       throw err

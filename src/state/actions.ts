@@ -1,4 +1,3 @@
-import { activeGeocoder, setDataSource } from '../db/settings'
 import type { ImportOutcome } from '../db/importRepo'
 import { dataWorker, proxy } from '../workers/client'
 import type { PipelineProgress } from '../pipeline/runner'
@@ -14,13 +13,13 @@ export function startPipeline(): Promise<void> {
   pipelineRunning ??= (async () => {
     try {
       const worker = dataWorker()
-      const geocoder = await activeGeocoder()
-      if (!(await worker.pendingJobs(geocoder))) return
+      // The worker picks the geocoder itself: deciding here raced with an
+      // import that was still recording its data source.
+      if (!(await worker.pendingJobs())) return
       let lastReload = Date.now()
       let lastStage = ''
       let located = false
       await worker.runPipeline(
-        geocoder,
         proxy((p: PipelineProgress) => {
           useApp.getState().setPipeline(p)
           if (p.stage === 'resolve' && p.resolved + p.flagged > 0) located = true
@@ -53,21 +52,18 @@ export function cancelPipeline(): void {
 export async function importFiles(files: File[]): Promise<ImportOutcome> {
   const payload = await Promise.all(files.map(async (f) => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) })))
   const outcome = await dataWorker().importFiles(payload)
-  await setDataSource('takeout')
   await useApp.getState().load()
   return outcome
 }
 
 export async function importSample(count: number, revision: 1 | 2): Promise<ImportOutcome> {
   const outcome = await dataWorker().importSample(count, revision)
-  await setDataSource('sample')
   await useApp.getState().load()
   return outcome
 }
 
 export async function seedDemo(count: number): Promise<void> {
   await dataWorker().seedDemo(count)
-  await setDataSource('demo')
   await useApp.getState().load()
   useApp.getState().requestFit()
 }

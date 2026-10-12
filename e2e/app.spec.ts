@@ -1,6 +1,18 @@
 import { expect, test } from '@playwright/test'
 import { buildSampleTakeoutZip } from '../src/dev/sampleTakeout'
 
+// CI never calls live services: block them all, and remember any attempt so
+// tests on sample data can prove they stayed on the offline fixtures.
+const LIVE = /photon\.komoot\.io|nominatim\.openstreetmap\.org|overpass-api\.de|googleapis\.com|openrouter\.ai/
+let liveCalls: string[] = []
+test.beforeEach(async ({ page }) => {
+  liveCalls = []
+  await page.route(LIVE, (route) => {
+    liveCalls.push(route.request().url())
+    return route.abort()
+  })
+})
+
 test.describe('import and browse', () => {
   test('imports a Takeout zip, assigns roles, filters and opens a place', async ({ page }) => {
     await page.goto('/')
@@ -46,8 +58,9 @@ test.describe('import and browse', () => {
     await expect(page.getByTestId('import-summary')).toBeVisible()
     await page.getByTestId('save-roles').click()
 
-    // The pipeline locates everything with the fixture geocoder.
+    // The pipeline locates everything with the fixture geocoder, never a live one.
     await expect(page.getByTestId('pipeline-banner')).toBeHidden({ timeout: 60_000 })
+    expect(liveCalls).toEqual([])
     await page.getByLabel('Search your places').fill('kadikoy')
     await expect(page).toHaveURL(/q=kadikoy/)
     await page.getByTestId('sheet').locator('div.cursor-grab').click()
@@ -94,6 +107,10 @@ test.describe('import and browse', () => {
 })
 
 test.describe('phases 2 and 3', () => {
+  test.afterEach(() => {
+    expect(liveCalls, 'sample data must only use the offline fixtures').toEqual([])
+  })
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/#/import')
     await page.getByTestId('import-sample').click()
