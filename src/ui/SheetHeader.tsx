@@ -27,6 +27,7 @@ export function SheetHeader() {
   if (filters.needsReview) chips.push({ key: 'review', label: 'Needs a check', remove: () => setFilters({ needsReview: false }) })
   if (filters.openNow) chips.push({ key: 'open', label: 'Open now', remove: () => setFilters({ openNow: false }) })
   if (filters.bbox) chips.push({ key: 'bbox', label: 'This area', remove: () => setFilters({ bbox: undefined }) })
+  if (filters.area) chips.push({ key: 'area', label: 'Drawn area', remove: () => setFilters({ area: undefined }) })
   if (filters.near) chips.push({ key: 'near', label: `Within ${filters.near.km < 1 ? `${filters.near.km * 1000} m` : `${filters.near.km} km`}`, remove: () => setFilters({ near: undefined }) })
   if (filters.seenFrom || filters.seenTo) chips.push({ key: 'seen', label: 'First seen range', remove: () => setFilters({ seenFrom: undefined, seenTo: undefined }) })
 

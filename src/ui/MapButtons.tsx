@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useApp } from '../state/store'
 import { LayersButton } from './LayersButton'
+
+const LassoOverlay = lazy(() => import('./LassoOverlay').then((m) => ({ default: m.LassoOverlay })))
 
 const RADII = [0.5, 1, 5]
 
 export function MapButtons() {
   const bounds = useApp((s) => s.mapBounds)
   const hasBbox = useApp((s) => !!s.filters.bbox)
+  const hasArea = useApp((s) => !!s.filters.area)
+  const [lasso, setLasso] = useState(false)
   const near = useApp((s) => s.filters.near)
   const sheet = useApp((s) => s.sheet)
   const [locating, setLocating] = useState(false)
@@ -47,13 +51,26 @@ export function MapButtons() {
     <div className="pointer-events-auto absolute right-3 z-10 flex flex-col items-end gap-2" style={{ bottom: sheet === 'peek' ? 148 : 'calc(50% + 16px)' }}>
       <LayersButton />
       {geoError && <p className="max-w-56 rounded-lg bg-white dark:bg-slate-900 px-3 py-2 text-[13px] text-slate-700 dark:text-slate-300 shadow">{geoError}</p>}
-      {bounds && (
+      <div className="flex gap-2">
+        {bounds && (
+          <button
+            onClick={() => useApp.getState().setFilters({ bbox: hasBbox ? undefined : bounds })}
+            className={`rounded-full px-4 py-2 text-[14px] font-medium shadow-md ring-1 ${hasBbox ? 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white ring-slate-900 dark:ring-slate-100' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-slate-200 dark:ring-slate-700'}`}
+          >
+            {hasBbox ? 'Clear area' : 'Search this area'}
+          </button>
+        )}
         <button
-          onClick={() => useApp.getState().setFilters({ bbox: hasBbox ? undefined : bounds })}
-          className={`rounded-full px-4 py-2 text-[14px] font-medium shadow-md ring-1 ${hasBbox ? 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white ring-slate-900 dark:ring-slate-100' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-slate-200 dark:ring-slate-700'}`}
+          onClick={() => (hasArea ? useApp.getState().setFilters({ area: undefined }) : setLasso(true))}
+          className={`rounded-full px-4 py-2 text-[14px] font-medium shadow-md ring-1 ${hasArea ? 'bg-violet-600 text-white ring-violet-600' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-slate-200 dark:ring-slate-700'}`}
         >
-          {hasBbox ? 'Clear area' : 'Search this area'}
+          {hasArea ? 'Clear drawn area' : 'Draw area'}
         </button>
+      </div>
+      {lasso && (
+        <Suspense fallback={null}>
+          <LassoOverlay onDone={() => setLasso(false)} />
+        </Suspense>
       )}
       <button
         onClick={nearMe}

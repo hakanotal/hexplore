@@ -26,6 +26,8 @@ export interface Filters {
   seenTo?: string
   /** [west, south, east, north] — "search this area" */
   bbox?: [number, number, number, number]
+  /** A drawn area as [lng, lat] points; the ring closes itself. */
+  area?: [number, number][]
   near?: { lat: number; lng: number; km: number }
 }
 
@@ -89,7 +91,22 @@ function matchesFixed(v: PlaceView, f: Filters, hits: Map<string, number> | null
     if (v.lat === undefined || v.lng === undefined) return false
     if (haversineKm(f.near, { lat: v.lat, lng: v.lng }) > f.near.km) return false
   }
+  if (f.area) {
+    if (v.lat === undefined || v.lng === undefined) return false
+    if (!insidePolygon(v.lng, v.lat, f.area)) return false
+  }
   return true
+}
+
+/** Ray casting; fine for the small, hand-drawn areas a lasso makes. */
+export function insidePolygon(x: number, y: number, ring: [number, number][]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]!
+    const [xj, yj] = ring[j]!
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
 }
 
 export interface FilterResult {
@@ -136,6 +153,7 @@ export function activeFilterCount(f: Filters): number {
     (f.openNow ? 1 : 0) +
     (f.seenFrom || f.seenTo ? 1 : 0) +
     (f.bbox ? 1 : 0) +
+    (f.area ? 1 : 0) +
     (f.near ? 1 : 0)
   )
 }
@@ -163,6 +181,7 @@ export function encodeFilters(f: Filters): string {
   if (f.seenTo) p.set('to', f.seenTo)
   if (f.bbox) p.set('bbox', f.bbox.map((x) => x.toFixed(4)).join(','))
   if (f.near) p.set('near', [f.near.lat.toFixed(5), f.near.lng.toFixed(5), f.near.km].join(','))
+  if (f.area) p.set('area', f.area.map(([x, y]) => `${x.toFixed(5)},${y.toFixed(5)}`).join(';'))
   return p.toString()
 }
 
@@ -181,5 +200,10 @@ export function decodeFilters(query: string): Filters {
   if (bbox?.length === 4 && bbox.every(Number.isFinite)) f.bbox = bbox as Filters['bbox']
   const near = p.get('near')?.split(',').map(Number)
   if (near?.length === 3 && near.every(Number.isFinite)) f.near = { lat: near[0]!, lng: near[1]!, km: near[2]! }
+  const area = p
+    .get('area')
+    ?.split(';')
+    .map((pt) => pt.split(',').map(Number))
+  if (area && area.length >= 3 && area.every((pt) => pt.length === 2 && pt.every(Number.isFinite))) f.area = area as [number, number][]
   return f
 }

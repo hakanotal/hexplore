@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildDemoData } from '../dev/demoData'
 import { buildViews } from './placeView'
-import { activeFilterCount, applyFilters, decodeFilters, emptyFilters, encodeFilters, type Filters } from './filters'
+import { activeFilterCount, applyFilters, decodeFilters, emptyFilters, encodeFilters, insidePolygon, type Filters } from './filters'
 import { createIndex, search } from './search'
 import { toSearchDocs } from './searchDocs'
 import { SpatialIndex } from './spatial'
@@ -150,6 +150,36 @@ describe('open now', () => {
     const f = { ...emptyFilters(), openNow: true }
     expect(encodeFilters(f)).toBe('open=1')
     expect(decodeFilters('open=1').openNow).toBe(true)
+    expect(activeFilterCount(f)).toBe(1)
+  })
+})
+
+describe('drawn area', () => {
+  const square: [number, number][] = [
+    [28.9, 41.0],
+    [29.1, 41.0],
+    [29.1, 41.1],
+    [28.9, 41.1],
+  ]
+
+  it('keeps places inside the drawn ring only', () => {
+    const views = buildViews({
+      places: [place('in', { lat: 41.05, lng: 29.0 }), place('out', { lat: 41.2, lng: 29.0 }), place('nowhere')],
+      memberships: ['in', 'out', 'nowhere'].map((placeId) => ({ placeId, listId: 'w', addedAt: NOW })),
+      lists,
+      userData: [],
+    })
+    expect(applyFilters(views, { ...emptyFilters(), area: square }).items.map((v) => v.id)).toEqual(['in'])
+    // A concave shape: the notch is outside.
+    const c: [number, number][] = [[0, 0], [4, 0], [4, 4], [2, 1], [0, 4]]
+    expect(insidePolygon(2, 3, c)).toBe(false)
+    expect(insidePolygon(1, 1, c)).toBe(true)
+  })
+
+  it('round-trips through the URL', () => {
+    const f = { ...emptyFilters(), area: square }
+    expect(decodeFilters(encodeFilters(f)).area).toEqual(square)
+    expect(decodeFilters('area=1,2;3,4').area).toBeUndefined()
     expect(activeFilterCount(f)).toBe(1)
   })
 })

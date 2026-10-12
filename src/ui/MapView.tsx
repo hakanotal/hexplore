@@ -68,11 +68,12 @@ export function MapView() {
   const byId = useApp((s) => s.byId)
   const userLocation = useApp((s) => s.userLocation)
   const near = useApp((s) => s.filters.near)
+  const area = useApp((s) => s.filters.area)
   const fitRequest = useApp((s) => s.fitRequest)
   const sheet = useApp((s) => s.sheet)
 
   // The latest data for each of our sources, so a style swap keeps your points.
-  const dataRef = useRef<PlaceData>({ places: EMPTY, heat: EMPTY, near: EMPTY, candidates: EMPTY, me: EMPTY })
+  const dataRef = useRef<PlaceData>({ places: EMPTY, heat: EMPTY, near: EMPTY, area: EMPTY, candidates: EMPTY, me: EMPTY })
   const selectedRef = useRef<string | null>(null)
   const basemap = useMapPrefs((s) => s.basemap)
   const space = themeFor(basemap, typeof baseStyleFor(basemap) === 'string').space
@@ -257,6 +258,13 @@ export function MapView() {
       map.fitBounds(b, { padding: { top: 80, bottom: window.innerHeight * 0.45, left: 30, right: 30 }, maxZoom: 16 })
     }
   }, [loaded, userLocation, near])
+
+  useEffect(() => {
+    dataRef.current.area = area
+      ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...area, area[0]!]] }, properties: {} }] }
+      : EMPTY
+    if (loaded) mapRef.current?.getSource<GeoJSONSource>('area')?.setData(dataRef.current.area)
+  }, [loaded, area])
 
   useEffect(() => {
     if (!loaded || !fitRequest) return

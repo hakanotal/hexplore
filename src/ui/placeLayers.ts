@@ -36,13 +36,15 @@ export const DARK_THEME: MapTheme = {
   space: '#05070d',
 }
 
-export const PLACE_SOURCE_IDS = ['places', 'heat', 'near', 'candidates', 'me'] as const
+export const PLACE_SOURCE_IDS = ['places', 'heat', 'near', 'area', 'candidates', 'me'] as const
 
 export interface PlaceData {
   places: FC
   /** Visited places among the results, unclustered, for the heatmap. */
   heat: FC
   near: FC
+  /** The drawn lasso area, when that filter is on. */
+  area: FC
   /** Numbered alternatives for the place being checked in the review queue. */
   candidates: FC
   me: FC
@@ -53,6 +55,7 @@ export function placeSources(data: PlaceData, opts: { cluster: boolean }): Recor
     places: opts.cluster ? { type: 'geojson', data: data.places, cluster: true, clusterRadius: 44, clusterMaxZoom: 14 } : { type: 'geojson', data: data.places },
     heat: { type: 'geojson', data: data.heat },
     candidates: { type: 'geojson', data: data.candidates },
+    area: { type: 'geojson', data: data.area },
     near: { type: 'geojson', data: data.near },
     me: { type: 'geojson', data: data.me },
   }
@@ -96,6 +99,8 @@ export function placeLayers(theme: MapTheme, opts: { glyphs: boolean; selectedId
   const layers: LayerSpecification[] = [
     { id: 'near-fill', type: 'fill', source: 'near', paint: { 'fill-color': '#2563eb', 'fill-opacity': theme.dark ? 0.12 : 0.06 } },
     { id: 'near-line', type: 'line', source: 'near', paint: { 'line-color': theme.dark ? '#60a5fa' : '#2563eb', 'line-width': 1.5, 'line-dasharray': [2, 2] } },
+    { id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#7c3aed', 'fill-opacity': theme.dark ? 0.14 : 0.07 } },
+    { id: 'area-line', type: 'line', source: 'area', paint: { 'line-color': theme.dark ? '#a78bfa' : '#7c3aed', 'line-width': 2 } },
     // Inside the near-me ring, places you want to go get a halo.
     {
       id: 'near-want',
