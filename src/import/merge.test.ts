@@ -151,6 +151,13 @@ describe('planImport', () => {
     expect(third.putPlaces.find((p) => p.id === 'g1')!.title).toBe('Galata Tower Museum')
   })
 
+  it('keeps the name Google filled in for a row exported without a title', () => {
+    const state = stateFrom(planImport(parsed(list('Visited', [{ placeId: 'g1', title: 'Untitled place' }], 'v1')), empty, T0))
+    state.places.set('g1', { ...state.places.get('g1')!, title: 'IBB Fatih Sports Centre' })
+    const plan = planImport(parsed(list('Visited', [{ placeId: 'g1', title: 'Untitled place' }, { placeId: 'g2', title: 'New' }], 'v2')), state, T1)
+    expect(plan.putPlaces.map((p) => p.id)).toEqual(['g2'])
+  })
+
   it('does not create lists for empty collections but still empties known lists', () => {
     const none = planImport(parsed(list('Images', [])), empty, T0)
     expect(none.putLists).toHaveLength(0)

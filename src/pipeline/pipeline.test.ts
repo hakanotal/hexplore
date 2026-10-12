@@ -9,6 +9,7 @@ import { runPipeline, type PipelineServices } from './runner'
 import { confidence, FID_CONFIDENCE, resolvePlace, scoreCandidates } from './resolve'
 import type { GeoCandidate, Geocoder } from '../services/geocoder'
 import type { Place } from '../domain/types'
+import type { GooglePlace, PlaceDetailsService } from '../services/googlePlaces'
 
 let db: HexploreDB
 beforeEach(() => {
@@ -86,6 +87,29 @@ describe('resolving a feature ID point', () => {
   })
 })
 
+describe('resolving through Google Place Details', () => {
+  const g: GooglePlace = { placeId: 'ChIJx', name: 'IBB Fatih Sports Centre', lat: 41.01, lng: 28.95, types: ['sports_complex'], primaryType: 'sports_complex', businessStatus: 'OPERATIONAL' }
+  const place = (title: string, fid?: string): Place => ({
+    id: 'g1', title, googleFid: fid, lat: 41.0256, lng: 28.9742, coordSource: 'fid', resolveStatus: 'pending', aiTags: [], firstSeenAt: 0, updatedAt: 0,
+  })
+  const ctx = { lists: [], hints: [] }
+  const noSearch: Geocoder = { id: 'stub', search: async () => { throw new Error('should not search') } }
+
+  it('takes the exact place and fills a missing title from Google', async () => {
+    const places: PlaceDetailsService = { id: 'google', details: async () => g }
+    const out = await resolvePlace(place('Untitled place', '0x1:0x2'), { geocoder: noSearch, places, ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { lat: 41.01, coordSource: 'google', resolveStatus: 'resolved', googlePrimaryType: 'sports_complex', title: 'IBB Fatih Sports Centre' } })
+    const named = await resolvePlace(place('Fatih Spor', '0x1:0x2'), { geocoder: noSearch, places, ctx, final: false })
+    if (named.kind === 'commit') expect(named.patch.title).toBeUndefined()
+  })
+
+  it('falls back to the OpenStreetMap search when Google has nothing', async () => {
+    const places: PlaceDetailsService = { id: 'google', details: async () => null }
+    const out = await resolvePlace(place('Galata Tower', '0x1:0x2'), { geocoder: { id: 'stub', search: async () => [cand('Galata Tower', 41.0256, 28.9742)] }, places, ctx, final: false })
+    expect(out).toMatchObject({ kind: 'commit', patch: { coordSource: 'geocoder', resolveSource: 'stub' } })
+  })
+})
+
 describe('runPipeline with the fixture geocoder', () => {
   it('resolves, enriches and classifies a sample import', async () => {
     await importTakeout([{ path: 't.zip', data: buildSampleTakeoutZip({ count: 200 }) }])
@@ -119,6 +143,35 @@ describe('runPipeline with the fixture geocoder', () => {
     expect(progress).toContain('resolve')
     expect(progress).toContain('classify')
     expect(progress.at(-1)).toBe('idle')
+  })
+
+  it('resolves every place with a feature ID through Google, without name searches', async () => {
+    await importTakeout([{ path: 't.zip', data: buildSampleTakeoutZip({ count: 120 }) }])
+    const world = generateWorld(200)
+    const byFid = new Map(world.map((w) => [w.fid, w]))
+    const GOOGLE_TYPE: Record<string, string> = { food: 'restaurant', cafe: 'coffee_shop', bar: 'pub', culture: 'museum', nature: 'park', shopping: 'book_store' }
+    const places: PlaceDetailsService = {
+      id: 'google',
+      details: async (fid) => {
+        const w = byFid.get(fid)
+        const type = w && GOOGLE_TYPE[w.category]
+        return w ? { placeId: `ChIJ${w.index}`, name: w.title, lat: w.lat, lng: w.lng, address: w.address, types: type ? [type] : [], primaryType: type } : null
+      },
+    }
+    const fixture = new FixtureGeocoder(world)
+    const searched = new Set<string>()
+    const geocoder: Geocoder = { id: 'fixture', search: (q) => { searched.add(q.text); return fixture.search(q) } }
+    await runPipeline(db, { geocoder, reverse: fixture, places })
+
+    const all = await db.places.toArray()
+    // Starred places came with exact coordinates from Saved Places.json and skip the lookup.
+    const withFid = all.filter((p) => p.googleFid && p.coordSource !== 'takeout')
+    expect(withFid.length).toBeGreaterThan(100)
+    expect(withFid.every((p) => p.coordSource === 'google' && p.lat === byFid.get(p.googleFid!)!.lat && p.city)).toBe(true)
+    const typed = withFid.filter((p) => GOOGLE_TYPE[byFid.get(p.googleFid!)!.category])
+    expect(typed.every((p) => p.category === byFid.get(p.googleFid!)!.category)).toBe(true)
+    // Only the row without any URL needed a name search.
+    expect([...searched]).toEqual(['That ramen place Elif mentioned'])
   })
 
   it('backs off and retries a failing geocoder without losing work', async () => {

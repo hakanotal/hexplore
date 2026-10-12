@@ -1,5 +1,6 @@
 import { UNTITLED_PLACE, type Membership, type Place, type ResolveCandidate } from '../domain/types'
 import type { GeoCandidate, Geocoder } from '../services/geocoder'
+import type { GooglePlace, PlaceDetailsService } from '../services/googlePlaces'
 import { haversineKm, nameSimilarity, normalizeName } from './similarity'
 
 // Stage 1: turn a title into coordinates. Places in one list cluster
@@ -8,9 +9,10 @@ import { haversineKm, nameSimilarity, normalizeName } from './similarity'
 // against those clusters.
 //
 // Most list rows already carry an approximate point decoded from the Google
-// feature ID (coordSource 'fid'). That point outweighs any list context: the
-// search only has to find the matching POI next to it, and when none matches
-// Google's own point is kept.
+// feature ID (coordSource 'fid'). With a Google key, Place Details by ID gives
+// the exact place. Without one (or past the monthly budget) that point
+// outweighs any list context: the search only has to find the matching POI
+// next to it, and when none matches Google's own point is kept.
 
 export const ACCEPT_THRESHOLD = 0.85
 export const REVIEW_THRESHOLD = 0.5
@@ -193,6 +195,8 @@ export type ResolveOutcome =
 
 export interface ResolveOptions {
   geocoder: Geocoder
+  /** Google Place Details; tried first for places with a feature ID. */
+  places?: PlaceDetailsService
   ctx: ResolveContext
   final: boolean
   listNames?: string[]
@@ -237,6 +241,25 @@ function geocoderPatch(chosen: GeoCandidate, value: number, accepted: boolean, s
   }
 }
 
+export function googlePatch(place: Place, g: GooglePlace): Partial<Place> {
+  return {
+    lat: g.lat,
+    lng: g.lng,
+    coordSource: 'google',
+    resolveStatus: 'resolved',
+    resolveConfidence: 1,
+    resolveSource: 'google',
+    resolveCandidates: undefined,
+    googlePlaceId: g.placeId,
+    googleTypes: g.types,
+    googlePrimaryType: g.primaryType,
+    businessStatus: g.businessStatus,
+    address: g.address,
+    // List titles stay as the owner saved them; only rows exported without one take Google's name.
+    ...(place.title === UNTITLED_PLACE && g.name ? { title: g.name } : {}),
+  }
+}
+
 /** Refines a feature ID point. Never defers: list clusters add nothing to it. */
 async function resolveAnchored(place: Place, anchor: { lat: number; lng: number }, opts: ResolveOptions): Promise<ResolveOutcome> {
   const keep: Partial<Place> = {
@@ -266,6 +289,10 @@ async function resolveAnchored(place: Place, anchor: { lat: number; lng: number 
 }
 
 export async function resolvePlace(place: Place, opts: ResolveOptions): Promise<ResolveOutcome> {
+  if (opts.places && place.googleFid) {
+    const g = await opts.places.details(place.googleFid, opts.signal)
+    if (g) return { kind: 'commit', patch: googlePatch(place, g) }
+  }
   if (place.coordSource === 'fid' && place.lat !== undefined && place.lng !== undefined) {
     return resolveAnchored(place, { lat: place.lat, lng: place.lng }, opts)
   }

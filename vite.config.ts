@@ -48,6 +48,9 @@ export default defineConfig({
       },
     }),
   ],
+  // PLACES_API_KEY in .env reaches the client (and the built JS). Restrict the
+  // key to the Places API and your own domain in Google Cloud.
+  envPrefix: ['VITE_', 'PLACES_API_KEY'],
   worker: { format: 'es' },
   build: {
     target: 'es2022',

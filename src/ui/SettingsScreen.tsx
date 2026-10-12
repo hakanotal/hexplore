@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { backupFileName, exportBackup, restoreBackup } from '../db/backup'
-import { clearAllData, loadSettings, saveSetting, type AppSettings } from '../db/settings'
+import { clearAllData, ENV_GOOGLE_PLACES_KEY, GOOGLE_MONTHLY_LIMIT, googleUsage, loadSettings, saveSetting, type AppSettings, type GoogleUsage } from '../db/settings'
 import { refresh, startPipeline } from '../state/actions'
 import { downloadJson } from './format'
 import { Page } from './Page'
@@ -9,9 +9,11 @@ export function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [storage, setStorage] = useState<{ usage?: number; quota?: number; persisted?: boolean } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [usage, setUsage] = useState<GoogleUsage | null>(null)
 
   useEffect(() => {
     void loadSettings().then(setSettings)
+    void googleUsage().then(setUsage)
     void (async () => {
       const est = await navigator.storage?.estimate?.()
       const persisted = await navigator.storage?.persisted?.()
@@ -41,6 +43,24 @@ export function SettingsScreen() {
           </select>
         </label>
         <p className="mt-1 text-[13px] text-slate-500">Both are OpenStreetMap based, so results may be stored permanently. Sample data always uses the offline geocoder.</p>
+      </Section>
+
+      <Section title="Google Places">
+        <label className="block text-[14px] text-slate-700">
+          API key
+          <input
+            type="password"
+            autoComplete="off"
+            value={settings.googlePlacesKey}
+            onChange={(e) => void update('googlePlacesKey', e.target.value)}
+            placeholder={ENV_GOOGLE_PLACES_KEY ? 'Using PLACES_API_KEY from .env' : 'AIza…'}
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <p className="mt-1 text-[13px] text-slate-500">
+          Looks up each saved place by its Google ID for an exact position, type and open or closed status. Results are stored on this device.
+          {usage && ` ${usage.calls.toLocaleString()} of ${GOOGLE_MONTHLY_LIMIT.toLocaleString()} lookups used this month (Google's free allowance is 5,000); past that, OpenStreetMap takes over.`}
+        </p>
       </Section>
 
       <Section title="AI (OpenRouter)">

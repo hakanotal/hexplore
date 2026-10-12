@@ -6,7 +6,7 @@ import { getDb } from './db'
 
 export const BACKUP_FORMAT = 'hexplore-backup'
 export const BACKUP_VERSION = 1
-const SECRET_SETTINGS = new Set(['openRouterKey', 'orsKey'])
+const SECRET_SETTINGS = new Set(['openRouterKey', 'orsKey', 'googlePlacesKey'])
 
 export interface Backup {
   format: typeof BACKUP_FORMAT

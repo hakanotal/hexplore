@@ -2,6 +2,7 @@ import type { HexploreDB } from '../db/db'
 import { enqueueJobs } from '../db/jobs'
 import type { Job, Membership, Place, StageName } from '../domain/types'
 import type { Geocoder, ReverseGeocoder } from '../services/geocoder'
+import type { PlaceDetailsService } from '../services/googlePlaces'
 import { assignArea, classifyPlace } from './enrich'
 import { computeListClusters, resolvePlace, type Disambiguator, type ListGeo, type ResolveContext } from './resolve'
 
@@ -14,6 +15,8 @@ export const MAX_ATTEMPTS = 5
 export interface PipelineServices {
   geocoder: Geocoder
   reverse: ReverseGeocoder
+  /** Google Place Details, when a key is configured. */
+  places?: PlaceDetailsService
   disambiguate?: Disambiguator
 }
 
@@ -65,7 +68,7 @@ export async function healQueue(db: HexploreDB, now: number): Promise<void> {
     if (p.resolveStatus === 'pending' && !has.has(`resolve:${p.id}`)) resolve.push(p.id)
     // Pending places with a feature ID point get their area after resolve.
     if (p.lat !== undefined && !p.city && p.resolveStatus !== 'pending' && !has.has(`area:${p.id}`)) area.push(p.id)
-    if (p.osmTags && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
+    if ((p.osmTags || p.googleTypes?.length) && !p.category && !has.has(`classify:${p.id}`)) classify.push(p.id)
   }
   await db.jobs.bulkPut([...enqueueJobs('resolve', resolve, now), ...enqueueJobs('area', area, now), ...enqueueJobs('classify', classify, now)])
 }
@@ -120,6 +123,7 @@ export async function runPipeline(db: HexploreDB, services: PipelineServices, op
         try {
           const outcome = await resolvePlace(place, {
             geocoder: services.geocoder,
+            places: services.places,
             ctx: buildContext(place, membershipsByPlace, clusters),
             final,
             listNames: (membershipsByPlace.get(place.id) ?? []).map((m) => listNames.get(m.listId) ?? ''),

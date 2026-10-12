@@ -15,9 +15,12 @@ export type ResolveStatus =
 
 /**
  * Where coordinates came from. `fid` is the approximate point decoded from the
- * Google feature ID; the resolve stage refines it.
+ * Google feature ID; the resolve stage refines it, through Google Place Details
+ * (`google`) when a key is set, otherwise an OSM geocoder.
  */
-export type CoordSource = 'takeout' | 'url' | 'fid' | 'geocoder' | 'manual'
+export type CoordSource = 'takeout' | 'url' | 'fid' | 'google' | 'geocoder' | 'manual'
+
+export type BusinessStatus = 'OPERATIONAL' | 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY'
 
 export type StageName = 'resolve' | 'match' | 'classify' | 'area' | 'embed'
 
@@ -31,6 +34,12 @@ export interface Place {
   title: string
   /** Address as Google exported it (starred places only). */
   googleAddress?: string
+  /** Places API ID (ChIJ…), built from the feature ID and confirmed by Place Details. */
+  googlePlaceId?: string
+  /** Place Details types, most specific first, e.g. steak_house, restaurant, food. */
+  googleTypes?: string[]
+  googlePrimaryType?: string
+  businessStatus?: BusinessStatus
 
   lat?: number
   lng?: number

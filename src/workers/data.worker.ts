@@ -9,6 +9,8 @@ import { runPipeline, type PipelineProgress, type PipelineServices } from '../pi
 import type { GeocoderId } from '../services/geocoder'
 import { NominatimGeocoder } from '../services/nominatim'
 import { PhotonGeocoder } from '../services/photon'
+import { GooglePlaces } from '../services/googlePlaces'
+import { googlePlacesKey, loadSettings, takeGoogleCall } from '../db/settings'
 
 // Heavy jobs off the main thread: Takeout parsing and merging, the enrichment
 // pipeline, and demo data generation. Opens its own connection to the database.
@@ -24,7 +26,12 @@ async function fixtureServices(): Promise<PipelineServices> {
 async function servicesFor(id: GeocoderId): Promise<PipelineServices> {
   if (id === 'fixture') return fixtureServices()
   const nominatim = new NominatimGeocoder()
-  return { geocoder: id === 'nominatim' ? nominatim : new PhotonGeocoder(), reverse: nominatim }
+  const key = googlePlacesKey(await loadSettings())
+  return {
+    geocoder: id === 'nominatim' ? nominatim : new PhotonGeocoder(),
+    reverse: nominatim,
+    places: key ? new GooglePlaces(key, { take: () => takeGoogleCall() }) : undefined,
+  }
 }
 
 const api = {

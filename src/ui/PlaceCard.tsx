@@ -36,6 +36,8 @@ export function PlaceCard({ id }: { id: string }) {
             {areaLine(v) && <span>· {areaLine(v)}</span>}
             {dist && <span>· {dist}</span>}
           </p>
+          {p.businessStatus === 'CLOSED_PERMANENTLY' && <p className="mt-1 text-[13px] font-medium text-red-700">Permanently closed</p>}
+          {p.businessStatus === 'CLOSED_TEMPORARILY' && <p className="mt-1 text-[13px] font-medium text-amber-700">Temporarily closed</p>}
         </div>
         <button onClick={() => select(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600" aria-label="Close">
           ✕

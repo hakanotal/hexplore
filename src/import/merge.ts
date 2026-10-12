@@ -1,4 +1,4 @@
-import type { CoordSource, ImportCounts, List, ListRole, Membership, Place } from '../domain/types'
+import { UNTITLED_PLACE, type CoordSource, type ImportCounts, type List, type ListRole, type Membership, type Place } from '../domain/types'
 import type { ParsedTakeout, SourceRow } from './takeout'
 
 // Pure merge of a parsed Takeout into the existing store. Produces the exact set
@@ -205,7 +205,8 @@ export function planImport(parsed: ParsedTakeout, existing: ExistingState, now =
           places.set(place.id, place)
           if (!newPlaceIds.has(place.id)) updatedPlaceIds.add(place.id)
         }
-        if (row.title !== place.title) {
+        // A row exported without a title must not undo the name Google filled in.
+        if (row.title !== place.title && row.title !== UNTITLED_PLACE) {
           const titles = titleCandidates.get(place.id)
           if (titles) titles.push(row.title)
           else titleCandidates.set(place.id, [row.title])

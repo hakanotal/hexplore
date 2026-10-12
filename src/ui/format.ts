@@ -22,6 +22,7 @@ export const ROLE_LABEL: Record<ListRole, string> = {
 
 const SOURCE_LABEL: Record<string, string> = {
   fid: 'Google place ID',
+  google: 'Google Places',
   url: 'Google Maps link',
   takeout: 'Google Takeout',
 }
