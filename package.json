@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@maplibre/maplibre-gl-style-spec": "^26.4.4",
     "@playwright/test": "1.56.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/geojson": "^7946.0.16",

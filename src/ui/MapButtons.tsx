@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../state/store'
+import { LayersButton } from './LayersButton'
 
 const RADII = [0.5, 1, 5]
 
@@ -44,6 +45,7 @@ export function MapButtons() {
   if (sheet === 'full') return null
   return (
     <div className="pointer-events-auto absolute right-3 z-10 flex flex-col items-end gap-2" style={{ bottom: sheet === 'peek' ? 148 : 'calc(50% + 16px)' }}>
+      <LayersButton />
       {geoError && <p className="max-w-56 rounded-lg bg-white px-3 py-2 text-[13px] text-slate-700 shadow">{geoError}</p>}
       {bounds && (
         <button

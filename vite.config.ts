@@ -34,6 +34,16 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            // Satellite imagery (Esri) and terrain (Mapterhorn). Live traffic is never cached.
+            urlPattern: ({ url }) => url.hostname === 'server.arcgisonline.com' || url.hostname === 'tiles.mapterhorn.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-imagery',
+              expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

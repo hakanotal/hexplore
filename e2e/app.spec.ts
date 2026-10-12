@@ -63,4 +63,32 @@ test.describe('import and browse', () => {
     await expect(page.getByRole('button', { name: 'Cafe ✕' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Want to go ✕' })).toBeVisible()
   })
+
+  test('map type and details persist across a reload', async ({ page }) => {
+    await page.goto('/#/import')
+    await page.getByTestId('import-sample').click()
+    await page.getByTestId('save-roles').click()
+    await expect(page.getByTestId('map')).toHaveAttribute('data-loaded', 'true')
+
+    await page.getByRole('button', { name: 'Map layers' }).click()
+    const panel = page.getByTestId('layers-panel')
+    await panel.getByText('Satellite', { exact: true }).click()
+    await panel.getByRole('button', { name: 'Globe' }).click()
+    await expect(panel.getByRole('radio', { name: 'Satellite' })).toBeChecked()
+    await expect(panel.getByRole('button', { name: 'Globe' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('map')).toHaveAttribute('data-basemap', 'satellite')
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __map: { getStyle(): { projection?: { type: string } } } }).__map.getStyle().projection?.type)).toBe('globe')
+
+    // Traffic asks for a key instead of failing silently.
+    await panel.getByRole('button', { name: 'Traffic' }).click()
+    await expect(panel.getByLabel('TomTom API key')).toBeVisible()
+    await panel.getByRole('button', { name: 'Traffic' }).click()
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeHidden()
+
+    await page.reload()
+    await expect(page.getByTestId('map')).toHaveAttribute('data-basemap', 'satellite')
+    await page.getByRole('button', { name: 'Map layers' }).click()
+    await expect(page.getByTestId('layers-panel').getByRole('button', { name: 'Globe' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })

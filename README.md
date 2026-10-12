@@ -50,6 +50,20 @@ src/
 
 The map, list and filters share one result set. Simple filters are applied in memory and the GeoJSON source is rebuilt from the filtered set. Filters are encoded in the URL, so any view can be bookmarked.
 
+**Map types and details.** The layers button above "Near me" switches the base map and toggles details. The choice is kept per device in `localStorage` (`hexplore:map`), so the map starts in the right style.
+
+| Option | Source | Key |
+| --- | --- | --- |
+| Light, Streets, Dark | OpenFreeMap Positron, Liberty, Dark | None |
+| Satellite | Esri World Imagery under Positron's labels, borders and main roads | None (non-commercial use with attribution) |
+| Transit | Rail, metro, tram and ferry lines plus stations, drawn from the same OpenFreeMap vector tiles | None |
+| Terrain | Hill shading from Mapterhorn elevation tiles (global to zoom 12) | None |
+| 3D buildings | OpenFreeMap building heights; tilts the map when turned on | None |
+| Globe | MapLibre globe projection when zoomed out | None |
+| Traffic | TomTom live flow tiles | Your own TomTom key, entered in the panel and kept in this browser only |
+
+`src/ui/mapStyle.ts` composes the whole style (base, details, then your places) as a pure function, and MapLibre diffs it against what is on screen, so a toggle costs a few milliseconds even at 10,000 places and the points never disappear. The unit tests run every combination through the style spec validator, because MapLibre rejects the entire change when one expression is invalid. Transit lines in OpenMapTiles carry no line colors or bus routes, and metro lines only appear from about zoom 14. New tile hosts must also be added to the CSP in `public/_headers`.
+
 **Place identity.** List CSVs carry a feature ID (`!1s0x...:0x...`), starred places carry a CID. The CID is the second half of the feature ID in decimal, so both map to the key `g<cid>`. Dropped pins key on coordinates, and rows without a URL fall back to a hash of title and list name.
 
 **Resolution.** Places without coordinates are geocoded in two passes. Pass one accepts only unambiguous matches. Then each list's geographic clusters are computed, and pass two scores the rest by name similarity plus proximity to the list's clusters, weighted by how concentrated the list is. A note that names a city counts as strong evidence. Above 0.85 is accepted, 0.5 to 0.85 is accepted and flagged, below goes to review. On 1,000 synthetic places this gives zero wrong auto-accepts; flagged places show their candidates on the place card, with "use this" and "place pin myself".
@@ -58,11 +72,11 @@ The map, list and filters share one result set. Simple filters are applied in me
 
 ## Status against the plan
 
-Done: phase 0 setup (CI, tests, PWA, Cloudflare Pages headers), phase 1 import and resolution (parser, Dexie schema, merge and re-import, list roles, resolution worker with list-context biasing and confidence scoring, review on the place card, backup), and most of phase 2 (map with clustering and visited styling, filters with live counts in the URL, text search, near me, search this area, virtualized bottom sheet, place card and actions).
+Done: phase 0 setup (CI, tests, PWA, Cloudflare Pages headers), phase 1 import and resolution (parser, Dexie schema, merge and re-import, list roles, resolution worker with list-context biasing and confidence scoring, review on the place card, backup), and most of phase 2 (map with clustering and visited styling, map types and details, filters with live counts in the URL, text search, near me, search this area, virtualized bottom sheet, place card and actions).
 
 Not yet: LLM disambiguation (the `Disambiguator` hook exists), Overpass matching, LLM classification, embeddings, saved views, lasso, category icons on the map, stats, the assistant, trips. Stage names and job queue already account for them.
 
-**Bundle budget.** The plan targets 350 KB gzipped initial JS. MapLibre v6 alone is about 270 KB, React and Dexie about 120 KB, for ~392 KB today. `budget.json` gates CI at 400 KB so it can only shrink. Levers: Preact instead of React (open decision in the plan), or pinning MapLibre 4.x (~210 KB including its worker).
+**Bundle budget.** The plan targets 350 KB gzipped initial JS. MapLibre v6 alone is about 270 KB, React and Dexie about 120 KB, for ~395 KB today. `budget.json` gates CI at 400 KB so it can only shrink. Levers: Preact instead of React (open decision in the plan), or pinning MapLibre 4.x (~210 KB including its worker).
 
 ## Deploying
 
