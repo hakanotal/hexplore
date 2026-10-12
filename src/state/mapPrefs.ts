@@ -2,13 +2,14 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type BasemapId = 'light' | 'streets' | 'dark' | 'satellite'
-export type DetailId = 'transit' | 'traffic' | 'terrain' | 'buildings' | 'heatmap' | 'globe'
+export type DetailId = 'transit' | 'traffic' | 'terrain' | 'buildings' | 'heatmap' | 'cluster' | 'globe'
 export type MapDetails = Record<DetailId, boolean>
 
 export const BASEMAP_IDS: BasemapId[] = ['light', 'streets', 'dark', 'satellite']
-export const DETAIL_IDS: DetailId[] = ['transit', 'traffic', 'terrain', 'buildings', 'heatmap', 'globe']
+export const DETAIL_IDS: DetailId[] = ['transit', 'traffic', 'terrain', 'buildings', 'heatmap', 'cluster', 'globe']
 
-export const DEFAULT_DETAILS: MapDetails = { transit: false, traffic: false, terrain: false, buildings: false, heatmap: false, globe: false }
+// Every place shows as its own dot unless you ask for grouping.
+export const DEFAULT_DETAILS: MapDetails = { transit: false, traffic: false, terrain: false, buildings: false, heatmap: false, cluster: false, globe: false }
 
 interface MapPrefsState {
   basemap: BasemapId

@@ -46,9 +46,9 @@ export interface PlaceData {
   me: FC
 }
 
-export function placeSources(data: PlaceData): Record<string, SourceSpecification> {
+export function placeSources(data: PlaceData, opts: { cluster: boolean }): Record<string, SourceSpecification> {
   return {
-    places: { type: 'geojson', data: data.places, cluster: true, clusterRadius: 44, clusterMaxZoom: 14 },
+    places: opts.cluster ? { type: 'geojson', data: data.places, cluster: true, clusterRadius: 44, clusterMaxZoom: 14 } : { type: 'geojson', data: data.places },
     heat: { type: 'geojson', data: data.heat },
     near: { type: 'geojson', data: data.near },
     me: { type: 'geojson', data: data.me },

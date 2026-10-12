@@ -13,7 +13,7 @@ export function LayersButton() {
       <button
         ref={button}
         onClick={() => setOpen(true)}
-        className="grid h-11 w-11 place-items-center rounded-full bg-white text-slate-700 shadow-md ring-1 ring-slate-200"
+        className="grid h-11 w-11 place-items-center rounded-full bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 shadow-md ring-1 ring-slate-200 dark:ring-slate-700"
         aria-label="Map layers"
         aria-haspopup="dialog"
         aria-expanded={open}

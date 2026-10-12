@@ -44,6 +44,16 @@ const DETAILS: { id: DetailId; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: 'cluster',
+    label: 'Group nearby',
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="6.5" />
+        <path d="M10.2 10.2h.01M13.8 10.2h.01M12 14h.01" strokeWidth="2.6" />
+      </>
+    ),
+  },
+  {
     id: 'globe',
     label: 'Globe',
     icon: (
@@ -78,11 +88,11 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-label="Map layers"
         data-testid="layers-panel"
-        className="relative w-full max-w-md rounded-t-2xl bg-white px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_24px_rgba(15,23,42,0.18)] outline-none"
+        className="relative w-full max-w-md rounded-t-2xl bg-white dark:bg-slate-900 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_24px_rgba(15,23,42,0.18)] outline-none"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold text-slate-900">Map type</h2>
-          <button onClick={onClose} className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Close">
+          <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Map type</h2>
+          <button onClick={onClose} className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
             </svg>
@@ -94,18 +104,18 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
               <input type="radio" name="basemap" value={b.id} checked={basemap === b.id} onChange={() => useMapPrefs.getState().setBasemap(b.id)} className="peer sr-only" />
               <span
                 className={`block aspect-square w-full overflow-hidden rounded-xl ring-offset-2 transition-shadow peer-focus-visible:ring-2 peer-focus-visible:ring-blue-400 ${
-                  basemap === b.id ? 'ring-2 ring-blue-600' : 'ring-1 ring-slate-200'
+                  basemap === b.id ? 'ring-2 ring-blue-600' : 'ring-1 ring-slate-200 dark:ring-slate-700'
                 }`}
               >
                 <Thumbnail id={b.id} />
               </span>
-              <span className={`text-[13px] ${basemap === b.id ? 'font-semibold text-blue-700' : 'text-slate-700'}`}>{b.label}</span>
+              <span className={`text-[13px] ${basemap === b.id ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{b.label}</span>
             </label>
           ))}
         </div>
 
-        <h2 className="mt-5 text-[15px] font-semibold text-slate-900">Map details</h2>
-        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <h2 className="mt-5 text-[15px] font-semibold text-slate-900 dark:text-slate-100">Map details</h2>
+        <div className="mt-2 grid grid-cols-4 gap-2">
           {DETAILS.map((d) => {
             const on = details[d.id]
             return (
@@ -115,12 +125,12 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
                 aria-pressed={on}
                 className="flex flex-col items-center gap-1.5 rounded-xl py-1 focus-visible:outline-2 focus-visible:outline-blue-400"
               >
-                <span className={`grid h-12 w-12 place-items-center rounded-xl transition-colors ${on ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <span className={`grid h-12 w-12 place-items-center rounded-xl transition-colors ${on ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                   <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     {d.icon}
                   </svg>
                 </span>
-                <span className={`text-center text-[12px] leading-tight ${on ? 'font-semibold text-blue-700' : 'text-slate-700'}`}>{d.label}</span>
+                <span className={`text-center text-[12px] leading-tight ${on ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{d.label}</span>
               </button>
             )
           })}
@@ -128,14 +138,14 @@ export function LayersPanel({ onClose }: { onClose: () => void }) {
 
         {details.traffic && (!trafficKey || trafficError) && <TrafficKeyForm error={trafficError} />}
         {details.traffic && trafficKey && !trafficError && (
-          <p className="mt-4 text-[13px] text-slate-500">
+          <p className="mt-4 text-[13px] text-slate-500 dark:text-slate-400">
             Live traffic from TomTom, using your key.{' '}
-            <button className="text-blue-700 underline-offset-2 hover:underline" onClick={() => useMapPrefs.getState().setTrafficKey('')}>
+            <button className="text-blue-700 dark:text-blue-400 underline-offset-2 hover:underline" onClick={() => useMapPrefs.getState().setTrafficKey('')}>
               Remove key
             </button>
           </p>
         )}
-        {details.terrain && <p className="mt-4 text-[13px] text-slate-500">Hill shading shows at every zoom; it is most detailed in North America and parts of Europe.</p>}
+        {details.terrain && <p className="mt-4 text-[13px] text-slate-500 dark:text-slate-400">Hill shading shows at every zoom; it is most detailed in North America and parts of Europe.</p>}
       </div>
     </div>
   )
@@ -145,15 +155,15 @@ function TrafficKeyForm({ error }: { error: string | null }) {
   const [value, setValue] = useState('')
   return (
     <form
-      className="mt-4 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200"
+      className="mt-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 ring-1 ring-slate-200 dark:ring-slate-700"
       onSubmit={(e) => {
         e.preventDefault()
         if (value.trim()) useMapPrefs.getState().setTrafficKey(value)
       }}
     >
-      <p className="text-[13px] text-slate-600">
+      <p className="text-[13px] text-slate-600 dark:text-slate-400">
         {error ?? 'Live traffic comes from TomTom and needs an API key.'} Create a free one at{' '}
-        <a href="https://developer.tomtom.com/" target="_blank" rel="noreferrer" className="text-blue-700 underline underline-offset-2">
+        <a href="https://developer.tomtom.com/" target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-400 underline underline-offset-2">
           developer.tomtom.com
         </a>
         . It stays in this browser.
@@ -166,9 +176,9 @@ function TrafficKeyForm({ error }: { error: string | null }) {
           onChange={(e) => setValue(e.target.value)}
           placeholder="TomTom API key"
           aria-label="TomTom API key"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px]"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-[14px]"
         />
-        <button type="submit" className="rounded-lg bg-slate-900 px-4 text-[14px] font-medium text-white disabled:opacity-40" disabled={!value.trim()}>
+        <button type="submit" className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 px-4 text-[14px] font-medium text-white disabled:opacity-40" disabled={!value.trim()}>
           Save
         </button>
       </div>

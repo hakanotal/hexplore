@@ -34,7 +34,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden bg-slate-100">
+    <div className="pointer-events-none fixed inset-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
       <div className="pointer-events-auto">
         <MapView />
       </div>
@@ -62,10 +62,10 @@ export default function App() {
 
 function EmptyState() {
   return (
-    <div className="pointer-events-auto absolute inset-x-4 bottom-6 z-10 rounded-2xl bg-white p-5 shadow-lg" data-testid="empty-state">
-      <h1 className="text-[20px] font-semibold text-slate-900">Your places, on one map</h1>
-      <p className="mt-1 text-[15px] text-slate-600">Import your Google Maps saved places from Takeout to get started, or try it with sample data.</p>
-      <button onClick={() => navigate('import')} className="mt-4 w-full rounded-xl bg-slate-900 py-3 text-[16px] font-semibold text-white" data-testid="go-import">
+    <div className="pointer-events-auto absolute inset-x-4 bottom-6 z-10 rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-lg" data-testid="empty-state">
+      <h1 className="text-[20px] font-semibold text-slate-900 dark:text-slate-100">Your places, on one map</h1>
+      <p className="mt-1 text-[15px] text-slate-600 dark:text-slate-400">Import your Google Maps saved places from Takeout to get started, or try it with sample data.</p>
+      <button onClick={() => navigate('import')} className="mt-4 w-full rounded-xl bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-3 text-[16px] font-semibold text-white" data-testid="go-import">
         Import places
       </button>
     </div>

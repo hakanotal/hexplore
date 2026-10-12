@@ -9,9 +9,10 @@ import { NAME_TO_ALPHA2, NUMERIC_TO_ALPHA2 } from '../stats/countryCodes'
 // out. Natural Earth 1:110m shapes from world-atlas, bundled into the lazy
 // stats chunk so the screen works offline.
 
-export const VISITED_COLOR = '#1e40af'
-export const SAVED_COLOR = '#60a5fa'
-const EMPTY_COLOR = '#e2e8f0'
+// Chart colors are CSS variables (src/index.css) so each theme has its own validated steps.
+export const VISITED_COLOR = 'var(--viz-visited)'
+export const SAVED_COLOR = 'var(--viz-saved)'
+const EMPTY_COLOR = 'var(--viz-empty)'
 
 const TOP = 84
 const BOTTOM = -58
@@ -83,8 +84,7 @@ export function WorldMap({ rows, onSelect }: { rows: CountryRow[]; onSelect: (ro
             <path
               key={i}
               d={s.d}
-              fill={fill}
-              stroke="#ffffff"
+              style={{ fill, stroke: 'var(--viz-gap)' }}
               strokeWidth={0.35}
               strokeLinejoin="round"
               className={r ? 'cursor-pointer outline-none hover:opacity-80 focus-visible:opacity-70' : undefined}
@@ -99,7 +99,7 @@ export function WorldMap({ rows, onSelect }: { rows: CountryRow[]; onSelect: (ro
           )
         })}
       </svg>
-      <figcaption className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-600">
+      <figcaption className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-600 dark:text-slate-400">
         <Key color={VISITED_COLOR}>Visited</Key>
         <Key color={SAVED_COLOR}>Saved, not visited yet</Key>
         <Key color={EMPTY_COLOR}>No saved places</Key>

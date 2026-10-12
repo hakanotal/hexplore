@@ -249,7 +249,7 @@ export function MapView() {
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" style={{ background: space }} data-testid="map" data-loaded={loaded ? 'true' : 'false'} data-basemap={basemap} />
       {error && (
-        <div className="absolute inset-x-4 top-24 rounded-lg bg-white/90 p-3 text-sm text-slate-700 shadow">
+        <div className="absolute inset-x-4 top-24 rounded-lg bg-white/90 dark:bg-slate-900/90 p-3 text-sm text-slate-700 dark:text-slate-300 shadow">
           The map could not start ({error}). Search, filters and the list still work.
         </div>
       )}

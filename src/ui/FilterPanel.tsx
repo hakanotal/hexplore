@@ -28,11 +28,11 @@ export function FilterPanel({ onClose }: { onClose: () => void }) {
   const catOrder = [...TAXONOMY.map((c) => c.id), 'uncategorized']
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col bg-white" role="dialog" aria-label="Filters">
-      <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <button onClick={clear} className="text-[15px] text-blue-700">Clear all</button>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col bg-white dark:bg-slate-900" role="dialog" aria-label="Filters">
+      <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+        <button onClick={clear} className="text-[15px] text-blue-700 dark:text-blue-400">Clear all</button>
         <h2 className="text-[17px] font-semibold">Filters</h2>
-        <button onClick={onClose} className="text-[15px] font-medium text-slate-700">Done</button>
+        <button onClick={onClose} className="text-[15px] font-medium text-slate-700 dark:text-slate-300">Done</button>
       </header>
       <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
         <SavedViews />
@@ -66,18 +66,18 @@ export function FilterPanel({ onClose }: { onClose: () => void }) {
           <Chip active={filters.needsReview} onClick={() => setFilters({ needsReview: !filters.needsReview })}>Location needs a check</Chip>
         </Group>
         <Group title="First seen">
-          <label className="flex items-center gap-2 text-[14px] text-slate-600">
+          <label className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-400">
             From
-            <input type="date" value={filters.seenFrom ?? ''} onChange={(e) => setFilters({ seenFrom: e.target.value || undefined })} className="rounded-md border border-slate-300 px-2 py-1" />
+            <input type="date" value={filters.seenFrom ?? ''} onChange={(e) => setFilters({ seenFrom: e.target.value || undefined })} className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1" />
           </label>
-          <label className="flex items-center gap-2 text-[14px] text-slate-600">
+          <label className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-400">
             To
-            <input type="date" value={filters.seenTo ?? ''} onChange={(e) => setFilters({ seenTo: e.target.value || undefined })} className="rounded-md border border-slate-300 px-2 py-1" />
+            <input type="date" value={filters.seenTo ?? ''} onChange={(e) => setFilters({ seenTo: e.target.value || undefined })} className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1" />
           </label>
         </Group>
       </div>
-      <footer className="border-t border-slate-200 p-3">
-        <button onClick={onClose} className="w-full rounded-xl bg-slate-900 py-3 text-[16px] font-semibold text-white" data-testid="show-results">
+      <footer className="border-t border-slate-200 dark:border-slate-700 p-3">
+        <button onClick={onClose} className="w-full rounded-xl bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-3 text-[16px] font-semibold text-white" data-testid="show-results">
           Show {total.toLocaleString()} {total === 1 ? 'place' : 'places'}
         </button>
       </footer>
@@ -102,17 +102,17 @@ function SavedViews() {
   return (
     <Group title="Saved views">
       {views.map((v) => (
-        <span key={v.id} className="inline-flex items-center rounded-full bg-white ring-1 ring-slate-300">
-          <button onClick={() => useApp.getState().applyView(v)} className="py-1.5 pl-3 pr-1 text-[14px] text-slate-800">
+        <span key={v.id} className="inline-flex items-center rounded-full bg-white dark:bg-slate-900 ring-1 ring-slate-300 dark:ring-slate-600">
+          <button onClick={() => useApp.getState().applyView(v)} className="py-1.5 pl-3 pr-1 text-[14px] text-slate-800 dark:text-slate-200">
             {v.name}
           </button>
-          <button onClick={() => void useApp.getState().removeView(v.id)} className="px-2 py-1.5 text-[13px] text-slate-400" aria-label={`Delete view ${v.name}`}>
+          <button onClick={() => void useApp.getState().removeView(v.id)} className="px-2 py-1.5 text-[13px] text-slate-400 dark:text-slate-500" aria-label={`Delete view ${v.name}`}>
             ✕
           </button>
         </span>
       ))}
       {canSave && !naming && (
-        <button onClick={() => setNaming(true)} className="rounded-full px-3 py-1.5 text-[14px] text-blue-700 ring-1 ring-blue-200">
+        <button onClick={() => setNaming(true)} className="rounded-full px-3 py-1.5 text-[14px] text-blue-700 dark:text-blue-400 ring-1 ring-blue-200 dark:ring-blue-900">
           Save current filters
         </button>
       )}
@@ -130,9 +130,9 @@ function SavedViews() {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Lisbon food, not visited"
             aria-label="View name"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-[14px]"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-[14px]"
           />
-          <button type="submit" disabled={!name.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[14px] font-medium text-white disabled:opacity-40">
+          <button type="submit" disabled={!name.trim()} className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 px-3 py-1.5 text-[14px] font-medium text-white disabled:opacity-40">
             Save
           </button>
         </form>
@@ -160,7 +160,7 @@ function FacetGroup({ title, facet, options }: { title: string; facet: Facet; op
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h3>
       <div className="flex flex-wrap gap-2">{children}</div>
     </section>
   )
@@ -173,12 +173,12 @@ function Chip({ active, count, onClick, children }: { active: boolean; count?: n
       aria-pressed={active}
       disabled={!active && count === 0}
       className={`rounded-full px-3 py-1.5 text-[14px] ring-1 transition-colors disabled:opacity-40 ${
-        active ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-800 ring-slate-300'
+        active ? 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white ring-slate-900 dark:ring-slate-100' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-slate-300 dark:ring-slate-600'
       }`}
     >
       {children}
       {count !== undefined && ' '}
-      {count !== undefined && <span className={`ml-1 tabular-nums ${active ? 'text-slate-300' : 'text-slate-400'}`}>{count.toLocaleString()}</span>}
+      {count !== undefined && <span className={`ml-1 tabular-nums ${active ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 dark:text-slate-500'}`}>{count.toLocaleString()}</span>}
     </button>
   )
 }

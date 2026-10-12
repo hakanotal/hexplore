@@ -44,7 +44,7 @@ export function BottomSheet({ header, children }: { header: ReactNode; children:
 
   return (
     <section
-      className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl bg-white shadow-[0_-4px_24px_rgba(15,23,42,0.15)]"
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl bg-white dark:bg-slate-900 shadow-[0_-4px_24px_rgba(15,23,42,0.15)]"
       style={{ height, transition: drag === null ? 'height 220ms cubic-bezier(.2,.8,.2,1)' : 'none' }}
       data-testid="sheet"
       data-snap={sheet}
@@ -56,7 +56,7 @@ export function BottomSheet({ header, children }: { header: ReactNode; children:
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" aria-hidden />
+        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden />
         {header}
       </div>
       <div className="min-h-0 flex-1">{children}</div>

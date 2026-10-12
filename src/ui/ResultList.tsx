@@ -19,7 +19,7 @@ export function ResultList() {
   })
 
   if (!result.length) {
-    return <p className="px-4 py-6 text-center text-sm text-slate-500">No places match these filters.</p>
+    return <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">No places match these filters.</p>
   }
 
   return (
@@ -33,7 +33,7 @@ export function ResultList() {
             <button
               key={v.id}
               onClick={() => select(v.id)}
-              className="absolute left-0 flex w-full items-center gap-3 border-b border-slate-100 px-4 text-left hover:bg-slate-50"
+              className="absolute left-0 flex w-full items-center gap-3 border-b border-slate-100 dark:border-slate-800 px-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
               style={{ top: row.start, height: row.size }}
               data-testid="result-row"
             >
@@ -43,13 +43,13 @@ export function ResultList() {
                 aria-hidden
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-medium text-slate-900">{v.place.title}</span>
-                <span className="block truncate text-[13px] text-slate-500">
+                <span className="block truncate text-[15px] font-medium text-slate-900 dark:text-slate-100">{v.place.title}</span>
+                <span className="block truncate text-[13px] text-slate-500 dark:text-slate-400">
                   {[v.place.category ? categoryLabel(v.place.category) : null, areaLine(v) || (v.lat === undefined ? 'Locating…' : null)].filter(Boolean).join(' · ')}
                 </span>
               </span>
-              {v.needsReview && <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">Check</span>}
-              {dist && <span className="shrink-0 text-[13px] tabular-nums text-slate-500">{dist}</span>}
+              {v.needsReview && <span className="shrink-0 rounded bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">Check</span>}
+              {dist && <span className="shrink-0 text-[13px] tabular-nums text-slate-500 dark:text-slate-400">{dist}</span>}
             </button>
           )
         })}

@@ -34,15 +34,15 @@ export function SheetHeader() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[15px] font-semibold text-slate-900" data-testid="result-count">
+        <p className="text-[15px] font-semibold text-slate-900 dark:text-slate-100" data-testid="result-count">
           {total.toLocaleString()} {total === 1 ? 'place' : 'places'}
-          {total !== all && <span className="font-normal text-slate-500"> of {all.toLocaleString()}</span>}
+          {total !== all && <span className="font-normal text-slate-500 dark:text-slate-400"> of {all.toLocaleString()}</span>}
         </p>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortMode)}
           onPointerDown={(e) => e.stopPropagation()}
-          className="rounded-md bg-transparent text-[13px] text-slate-600"
+          className="rounded-md bg-transparent text-[13px] text-slate-600 dark:text-slate-400"
           aria-label="Sort"
         >
           {sorts.map((s) => (
@@ -55,12 +55,12 @@ export function SheetHeader() {
       {chips.length > 0 && (
         <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto pb-1" onPointerDown={(e) => e.stopPropagation()}>
           {chips.map((c) => (
-            <button key={c.key} onClick={c.remove} className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[13px] text-slate-700">
+            <button key={c.key} onClick={c.remove} className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[13px] text-slate-700 dark:text-slate-300">
               {c.label} ✕
             </button>
           ))}
           {chips.length > 1 && (
-            <button onClick={clear} className="shrink-0 px-2 py-1 text-[13px] text-blue-700">
+            <button onClick={clear} className="shrink-0 px-2 py-1 text-[13px] text-blue-700 dark:text-blue-400">
               Clear
             </button>
           )}

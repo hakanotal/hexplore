@@ -137,9 +137,11 @@ export function composeStyle(base: StyleSpecification, input: ComposeInput): Sty
     applied.push('transit')
   }
 
-  Object.assign(sources, placeSources(input.data))
+  Object.assign(sources, placeSources(input.data, { cluster: details.cluster }))
+  // Cluster layers stay in the style either way; without clustering they simply match nothing.
   layers.push(...placeLayers(theme, { glyphs, selectedId: input.selectedId, heatmap: details.heatmap }))
   if (details.heatmap) applied.push('heatmap')
+  if (details.cluster) applied.push('cluster')
 
   const out: StyleSpecification = {
     ...style,

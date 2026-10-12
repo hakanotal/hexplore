@@ -44,12 +44,12 @@ export function ImportScreen() {
 
   return (
     <Page title="Import">
-      <section className="space-y-2 text-[15px] text-slate-700">
+      <section className="space-y-2 text-[15px] text-slate-700 dark:text-slate-300">
         <p>
-          In <a className="text-blue-700 underline" href="https://takeout.google.com" target="_blank" rel="noreferrer">Google Takeout</a>, select{' '}
+          In <a className="text-blue-700 dark:text-blue-400 underline" href="https://takeout.google.com" target="_blank" rel="noreferrer">Google Takeout</a>, select{' '}
           <b>Saved</b> and <b>Maps (your places)</b>, download the zip and drop it here. The file is read on this device and never uploaded.
         </p>
-        <p className="text-[13px] text-slate-500">Takeout only exports lists you created. Lists you joined from other people will not appear.</p>
+        <p className="text-[13px] text-slate-500 dark:text-slate-400">Takeout only exports lists you created. Lists you joined from other people will not appear.</p>
       </section>
 
       <label
@@ -64,11 +64,11 @@ export function ImportScreen() {
           void onFiles([...e.dataTransfer.files])
         }}
         className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-10 text-center ${
-          dragOver ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50'
+          dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50' : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60'
         }`}
       >
-        <span className="text-[16px] font-medium text-slate-800">Drop takeout.zip here</span>
-        <span className="mt-1 text-[13px] text-slate-500">or tap to choose. List CSVs and Saved Places.json also work.</span>
+        <span className="text-[16px] font-medium text-slate-800 dark:text-slate-200">Drop takeout.zip here</span>
+        <span className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">or tap to choose. List CSVs and Saved Places.json also work.</span>
         <input
           type="file"
           accept=".zip,.csv,.json,.geojson"
@@ -79,24 +79,24 @@ export function ImportScreen() {
         />
       </label>
 
-      {busy && <p className="mt-4 text-[15px] text-slate-600" role="status">{busy}</p>}
-      {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-[14px] text-red-800">{error}</p>}
+      {busy && <p className="mt-4 text-[15px] text-slate-600 dark:text-slate-400" role="status">{busy}</p>}
+      {error && <p className="mt-4 rounded-lg bg-red-50 dark:bg-red-950/40 p-3 text-[14px] text-red-800 dark:text-red-300">{error}</p>}
       {outcome && <ImportSummary outcome={outcome} />}
       {unassigned.length > 0 && <RoleAssignment lists={unassigned} />}
 
-      <section className="mt-8 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-        <h2 className="text-[15px] font-semibold text-slate-900">No export yet?</h2>
-        <p className="mt-1 text-[13px] text-slate-600">
+      <section className="mt-8 rounded-2xl bg-slate-50 dark:bg-slate-800/60 p-4 ring-1 ring-slate-200 dark:ring-slate-700">
+        <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">No export yet?</h2>
+        <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">
           A synthetic Takeout runs through the same import, resolution and classification steps, using an offline geocoder.
         </p>
         <div className="mt-3 grid gap-2">
-          <button disabled={!!busy} onClick={() => run('Importing sample Takeout…', () => importSample(400, 1))} className="rounded-lg bg-slate-900 py-2.5 text-[15px] font-medium text-white disabled:opacity-50" data-testid="import-sample">
+          <button disabled={!!busy} onClick={() => run('Importing sample Takeout…', () => importSample(400, 1))} className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-2.5 text-[15px] font-medium text-white disabled:opacity-50" data-testid="import-sample">
             Import sample Takeout (400 places)
           </button>
-          <button disabled={!!busy} onClick={() => run('Importing a later sample export…', () => importSample(400, 2))} className="rounded-lg bg-white py-2.5 text-[15px] font-medium text-slate-800 ring-1 ring-slate-300 disabled:opacity-50">
+          <button disabled={!!busy} onClick={() => run('Importing a later sample export…', () => importSample(400, 2))} className="rounded-lg bg-white dark:bg-slate-900 py-2.5 text-[15px] font-medium text-slate-800 dark:text-slate-200 ring-1 ring-slate-300 dark:ring-slate-600 disabled:opacity-50">
             Simulate a later export (re-import)
           </button>
-          <button disabled={!!busy} onClick={() => run('Generating 10,000 places…', () => seedDemo(10_000))} className="rounded-lg bg-white py-2.5 text-[15px] font-medium text-slate-800 ring-1 ring-slate-300 disabled:opacity-50">
+          <button disabled={!!busy} onClick={() => run('Generating 10,000 places…', () => seedDemo(10_000))} className="rounded-lg bg-white dark:bg-slate-900 py-2.5 text-[15px] font-medium text-slate-800 dark:text-slate-200 ring-1 ring-slate-300 dark:ring-slate-600 disabled:opacity-50">
             Load 10,000 demo places (performance)
           </button>
         </div>
@@ -118,21 +118,21 @@ function ImportSummary({ outcome }: { outcome: ImportOutcome }) {
     ['Need locating', c.needsResolve],
   ]
   return (
-    <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200" data-testid="import-summary">
-      <h2 className="text-[15px] font-semibold text-slate-900">Import summary</h2>
+    <section className="mt-5 rounded-2xl bg-white dark:bg-slate-900 p-4 ring-1 ring-slate-200 dark:ring-slate-700" data-testid="import-summary">
+      <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Import summary</h2>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[14px]">
         {rows
           .filter(([, n]) => n > 0)
           .map(([label, n]) => (
-            <div key={label} className="flex justify-between border-b border-slate-100 py-1">
-              <dt className="text-slate-600">{label}</dt>
-              <dd className="font-medium tabular-nums text-slate-900" data-testid={`count-${label}`}>{n.toLocaleString()}</dd>
+            <div key={label} className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1">
+              <dt className="text-slate-600 dark:text-slate-400">{label}</dt>
+              <dd className="font-medium tabular-nums text-slate-900 dark:text-slate-100" data-testid={`count-${label}`}>{n.toLocaleString()}</dd>
             </div>
           ))}
       </dl>
-      {rows.every(([, n]) => n === 0) && <p className="mt-2 text-[14px] text-slate-600">Nothing changed since the last import.</p>}
+      {rows.every(([, n]) => n === 0) && <p className="mt-2 text-[14px] text-slate-600 dark:text-slate-400">Nothing changed since the last import.</p>}
       {outcome.plan.warnings.length > 0 && (
-        <details className="mt-3 text-[13px] text-slate-600">
+        <details className="mt-3 text-[13px] text-slate-600 dark:text-slate-400">
           <summary className="cursor-pointer">{outcome.plan.warnings.length} warnings</summary>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             {outcome.plan.warnings.slice(0, 50).map((w, i) => (
@@ -153,13 +153,13 @@ function RoleAssignment({ lists }: { lists: List[] }) {
   const setRoles = (next: Record<string, ListRole>) => setPicked(next)
 
   return (
-    <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-blue-200" data-testid="role-assignment">
-      <h2 className="text-[15px] font-semibold text-slate-900">What does each list mean?</h2>
-      <p className="mt-1 text-[13px] text-slate-600">Roles drive visited status, the "saved but never been" view and recommendations.</p>
+    <section className="mt-5 rounded-2xl bg-white dark:bg-slate-900 p-4 ring-1 ring-blue-200 dark:ring-blue-900" data-testid="role-assignment">
+      <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">What does each list mean?</h2>
+      <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">Roles drive visited status, the "saved but never been" view and recommendations.</p>
       <div className="mt-3 space-y-3">
         {lists.map((l) => (
           <div key={l.id}>
-            <div className="mb-1 flex items-center gap-2 text-[15px] font-medium text-slate-800">
+            <div className="mb-1 flex items-center gap-2 text-[15px] font-medium text-slate-800 dark:text-slate-200">
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: l.color }} />
               {l.name}
             </div>
@@ -170,7 +170,7 @@ function RoleAssignment({ lists }: { lists: List[] }) {
                   role="radio"
                   aria-checked={roles[l.id] === r}
                   onClick={() => setRoles({ ...roles, [l.id]: r })}
-                  className={`rounded-full px-3 py-1 text-[13px] ring-1 ${roles[l.id] === r ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+                  className={`rounded-full px-3 py-1 text-[13px] ring-1 ${roles[l.id] === r ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 ring-slate-300 dark:ring-slate-600'}`}
                 >
                   {ROLE_LABEL[r]}
                 </button>

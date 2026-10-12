@@ -44,13 +44,13 @@ function compose(patch: Partial<Omit<ComposeInput, 'details'>> & { details?: Par
 
 const ids = (s: StyleSpecification) => s.layers.map((l) => l.id)
 const layer = (s: StyleSpecification, id: string) => s.layers.find((l) => l.id === id) as LayerSpecification & { paint?: Record<string, unknown>; filter?: unknown }
-const ALL_ON: MapDetails = { transit: true, traffic: true, terrain: true, buildings: true, heatmap: true, globe: true }
+const ALL_ON: MapDetails = { transit: true, traffic: true, terrain: true, buildings: true, heatmap: true, cluster: true, globe: true }
 
 describe('composeStyle', () => {
   // MapLibre drops the whole style change when one expression is invalid, so
   // every combination has to pass the style spec.
   it('produces a valid style for every map type and detail', () => {
-    const detailSets: Partial<MapDetails>[] = [{}, ALL_ON, { transit: true }, { terrain: true }, { buildings: true }, { traffic: true }, { heatmap: true }, { globe: true }]
+    const detailSets: Partial<MapDetails>[] = [{}, ALL_ON, { transit: true }, { terrain: true }, { buildings: true }, { traffic: true }, { heatmap: true }, { cluster: true }, { globe: true }]
     for (const basemap of ['light', 'streets', 'dark', 'satellite'] as BasemapId[]) {
       for (const details of detailSets) {
         const errors = validateStyleMin(compose({ basemap, details, trafficKey: 'k', selectedId: 'p1' }))
@@ -72,7 +72,9 @@ describe('composeStyle', () => {
     const places = FC(5)
     const heat = FC(2)
     const s = compose({ data: { places, heat, near: EMPTY, me: EMPTY }, selectedId: 'p2' })
-    expect(s.sources.places).toMatchObject({ type: 'geojson', data: places, cluster: true })
+    // Every place is its own dot by default; grouping is opt-in.
+    expect(s.sources.places).toEqual({ type: 'geojson', data: places })
+    expect(compose({ details: { cluster: true } }).sources.places).toMatchObject({ cluster: true, clusterRadius: 44 })
     expect(s.sources.heat).toMatchObject({ type: 'geojson', data: heat })
     expect(layer(s, 'selected').filter).toEqual(['==', ['get', 'id'], 'p2'])
   })
@@ -107,7 +109,7 @@ describe('composeStyle', () => {
     expect(order.slice(-PLACE_LAYERS.length - 1)).toEqual(['near-fill', 'near-line', 'heat', ...PLACE_LAYERS.slice(2)])
     expect(s.projection).toEqual({ type: 'globe' })
     expect(s.sky).toBeDefined()
-    expect(s.metadata).toMatchObject({ 'hexplore:basemap': 'light', 'hexplore:details': ['terrain', 'traffic', 'buildings', 'transit', 'heatmap', 'globe'] })
+    expect(s.metadata).toMatchObject({ 'hexplore:basemap': 'light', 'hexplore:details': ['terrain', 'traffic', 'buildings', 'transit', 'heatmap', 'cluster', 'globe'] })
   })
 
   it('puts hill shading right above the imagery on satellite', () => {

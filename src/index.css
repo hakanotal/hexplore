@@ -1,5 +1,28 @@
 @import 'tailwindcss';
 
+/* Dark mode follows a class on <html>, set by src/state/theme.ts (system, light or dark). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Chart colors by role. Each mode has its own validated steps: on white the
+   visited step is the darker one, on the dark surface the brighter one, so
+   visited always reads as the stronger mark. */
+:root {
+  --viz-visited: #1e40af;
+  --viz-saved: #60a5fa;
+  --viz-empty: #e2e8f0;
+  --viz-accent: #2563eb;
+  --viz-track: #dbeafe;
+  --viz-gap: #ffffff;
+}
+.dark {
+  --viz-visited: #60a5fa;
+  --viz-saved: #1e4fa8;
+  --viz-empty: #334155;
+  --viz-accent: #3b82f6;
+  --viz-track: #1e293b;
+  --viz-gap: #0f172a;
+}
+
 html,
 body,
 #root {
@@ -13,6 +36,32 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: #f1f5f9;
   color: #0f172a;
+}
+
+.dark body {
+  background: #020617;
+  color: #f1f5f9;
+}
+
+/* MapLibre's zoom buttons and attribution on the dark page. */
+.dark .maplibregl-ctrl-group {
+  background: #0f172a;
+}
+.dark .maplibregl-ctrl-group button + button {
+  border-top-color: #334155;
+}
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.dark .maplibregl-ctrl-attrib {
+  background: rgba(15, 23, 42, 0.8);
+  color: #cbd5e1;
+}
+.dark .maplibregl-ctrl-attrib a {
+  color: #cbd5e1;
+}
+.dark .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }
 
 .maplibregl-ctrl-top-right {
